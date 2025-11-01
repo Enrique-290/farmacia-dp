@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Farmacia DP v1</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Sidebar (menú) -->
+  <aside id="sidebar" class="sidebar">
+    <div class="brand">
+      <button id="btnToggle" class="icon-btn" aria-label="Contraer/Expandir menú">☰</button>
+      <img id="menuLogo" class="brand-logo" alt="Logo negocio" />
+      <span class="brand-title">Farmacia DP v1</span>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-link active" data-section="dashboard">📊 Dashboard</button>
+      <button class="nav-link" data-section="ventas">🧾 Ventas</button>
+      <button class="nav-link" data-section="inventario">💊 Inventario</button>
+      <button class="nav-link" data-section="bodega">🏷️ Bodega</button>
+      <button class="nav-link" data-section="clientes">👤 Clientes</button>
+      <button class="nav-link" data-section="historial">🧾 Historial</button>
+      <button class="nav-link" data-section="reportes">📈 Reportes</button>
+      <button class="nav-link" data-section="config">⚙️ Configuración</button>
+    </nav>
+  </aside>
+
+  <!-- Contenido -->
+  <main id="content" class="content">
+    <!-- Header -->
+    <header class="topbar">
+      <button id="btnOpen" class="icon-btn show-on-mobile" aria-label="Abrir menú">☰</button>
+      <h1 id="sectionTitle">Dashboard</h1>
+      <div class="topbar-actions">
+        <input id="globalSearch" type="search" placeholder="Buscar…" />
+      </div>
+    </header>
+
+    <!-- Secciones -->
+    <section id="dashboard" class="view active" role="region" aria-label="Dashboard">
+      <div class="grid kpis">
+        <div class="card">Ventas Hoy <strong>$0.00</strong></div>
+        <div class="card">Tickets Hoy <strong>0</strong></div>
+        <div class="card">Productos vendidos <strong>0</strong></div>
+        <div class="card">Ticket promedio <strong>$0.00</strong></div>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <h3>Alertas — Stock bajo</h3>
+          <ul id="alertaStock" class="list slim">
+            <li>(Vacío)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Alertas — Próximas caducidades</h3>
+          <ul id="alertaCad" class="list slim">
+            <li>(Vacío)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Ventas últimos días</h3>
+        <div class="chart-placeholder">[Gráfica]</div>
+      </div>
+    </section>
+
+    <section id="ventas" class="view" role="region" aria-label="Ventas">
+      <div class="ventas-wrap">
+        <!-- Barra superior: búsqueda + etiquetas + escáner -->
+        <div class="ventas-toolbar">
+          <input type="search" id="ventaBuscar" placeholder="Buscar producto o SKU…" />
+          <select id="ventaEtiqueta">
+            <option value="">Todas las etiquetas</option>
+            <option>Genérico</option>
+            <option>Marca</option>
+            <option>Controlado</option>
+          </select>
+
+          <div class="scanner">
+            <label for="barcodeInput">Escáner:</label>
+            <input id="barcodeInput" type="text" inputmode="none" placeholder="Apunta el lector aquí…" />
+            <button id="reactivarScanner" class="btn">Reactivar</button>
+          </div>
+        </div>
+
+        <!-- Catálogo -->
+        <div class="catalogo" id="catalogoProductos">
+          <!-- Cards de producto (demo) -->
+          <div class="prod-card">
+            <div class="prod-img"></div>
+            <div class="prod-info">
+              <div class="prod-name">Paracetamol 500mg</div>
+              <div class="prod-sku">SKU: P-001</div>
+              <div class="prod-meta">
+                <span class="price">$25.00</span>
+                <span class="stock">Stock: 10</span>
+              </div>
+              <button class="btn add-to-cart">Agregar</button>
+            </div>
+          </div>
+
+          <div class="prod-card">
+            <div class="prod-img"></div>
+            <div class="prod-info">
+              <div class="prod-name">Amoxicilina 500mg</div>
+              <div class="prod-sku">SKU: A-010</div>
+              <div class="prod-meta">
+                <span class="price">$60.00</span>
+                <span class="stock">Stock: 5</span>
+              </div>
+              <button class="btn add-to-cart">Agregar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Carrito -->
+        <aside class="carrito" id="carritoPanel">
+          <h3>Carrito</h3>
+          <ul id="carritoLista" class="list slim">
+            <li>(Vacío)</li>
+          </ul>
+
+          <div class="extras">
+            <h4>Extras</h4>
+            <input id="extraDesc" type="text" placeholder="Descripción (ej. Curación)" />
+            <input id="extraMonto" type="number" step="0.01" placeholder="Monto" />
+            <button id="btnAgregarExtra" class="btn">Agregar extra</button>
+          </div>
+
+          <div class="receta">
+            <h4>Receta del paciente</h4>
+            <input id="recetaFile" type="file" accept="image/*,.pdf" />
+            <img id="recetaPreview" class="receta-preview" alt="Vista previa receta" />
+          </div>
+
+          <div class="total">
+            <span>Total:</span>
+            <strong id="total">$0.00</strong>
+          </div>
+
+          <div class="cart-actions">
+            <button id="btnCobrar" class="btn primary">Cobrar</button>
+            <button id="btnVaciar" class="btn">Vaciar</button>
+          </div>
+        </aside>
+
+        <!-- Botón flotante para abrir carrito en móvil -->
+        <button id="btnCarritoMovil" class="btn floating show-on-mobile">Carrito</button>
+      </div>
+    </section>
+
+    <section id="inventario" class="view" role="region" aria-label="Inventario">
+      <div class="toolbar">
+        <button class="btn primary">+ Producto</button>
+        <button class="btn">Importar</button>
+        <input type="search" placeholder="Filtrar por nombre/SKU…" />
+        <select>
+          <option value="">Etiqueta (todas)</option>
+          <option>Genérico</option>
+          <option>Marca</option>
+          <option>Controlado</option>
+        </select>
+      </div>
+
+      <!-- Tabla / tarjetas responsivas -->
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>IMG</th><th>SKU</th><th>Nombre</th><th>Etiqueta</th>
+              <th>Precio</th><th>Stock</th><th>Mín</th><th>Lotes</th><th>Cad. Próx.</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="invBody">
+            <tr>
+              <td>🖼</td><td>P-001</td><td>Paracetamol 500mg</td><td>Genérico</td>
+              <td>$25.00</td><td>10</td><td>5</td><td>2</td><td>2026-01-20</td>
+              <td>
+                <button class="btn sm">Editar</button>
+                <button class="btn sm">+ Stock</button>
+                <button class="btn sm danger">Eliminar</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="muted">Alertas visibles aquí mismo: <span class="tag warn">Stock bajo</span> · <span class="tag danger">Caducidad próxima</span></p>
+    </section>
+
+    <section id="bodega" class="view" role="region" aria-label="Bodega">
+      <div class="grid two">
+        <div class="card">
+          <h3>Solicitudes desde Inventario</h3>
+          <table class="table">
+            <thead>
+              <tr><th>Folio</th><th>SKU</th><th>Piezas</th><th>Estado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>S-001</td><td>P-001</td><td>20</td><td>Solicitado</td><td><button class="btn sm">Preparar</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Recepción (Inventario)</h3>
+          <ul class="list">
+            <li>S-001 • P-001 • 20u — <button class="btn sm">Aceptar</button> <button class="btn sm">Parcial</button> <button class="btn sm">Rechazar</button></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="clientes" class="view" role="region" aria-label="Clientes">
+      <div class="toolbar">
+        <button class="btn primary">+ Cliente</button>
+        <button class="btn">Importar</button>
+        <input type="search" placeholder="Buscar cliente…" />
+      </div>
+      <div class="table-responsive">
+        <table class="table">
+          <thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Compras</th><th>Última compra</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Juan Pérez</td><td>55…</td><td>juan@…</td><td>12</td><td>2025-10-12</td><td><button class="btn sm">Ver</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="historial" class="view" role="region" aria-label="Historial de ventas">
+      <div class="toolbar">
+        <input type="date" /> — <input type="date" />
+        <button class="btn">Exportar</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table">
+          <thead><tr><th>Folio</th><th>Fecha/Hora</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Receta</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>F-123</td><td>2025-10-12 10:20</td><td>Público</td><td>$450</td><td>EFE</td><td>📎</td><td>Activa</td><td><button class="btn sm">Ver</button> <button class="btn sm danger">Anular</button></td></tr>
+        </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="reportes" class="view" role="region" aria-label="Reportes">
+      <div class="toolbar">
+        <button class="btn">Diario</button>
+        <button class="btn">Semanal</button>
+        <button class="btn">Rango</button>
+        <button class="btn">Exportar</button>
+      </div>
+      <div class="card">
+        <h3>Resumen</h3>
+        <ul class="list">
+          <li>Total ventas: $0.00</li>
+          <li>Tickets: 0</li>
+          <li>Ticket promedio: $0.00</li>
+          <li>Top productos: —</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="config" class="view" role="region" aria-label="Configuración">
+      <div class="tabs">
+        <button class="tab active" data-tab="tema">Colores</button>
+        <button class="tab" data-tab="negocio">Datos del negocio</button>
+        <button class="tab" data-tab="ticket">Ticket 58mm</button>
+        <button class="tab" data-tab="respaldo">Respaldos</button>
+        <button class="tab" data-tab="web">Módulo web (próxima área)</button>
+      </div>
+
+      <!-- Colores -->
+      <div class="tabpanel active" id="tab-tema">
+        <div class="grid two">
+          <div class="card">
+            <h3>Colores del entorno</h3>
+            <label>Menú: <input type="color" id="cMenu" value="#0d6efd"></label>
+            <label>Fondo: <input type="color" id="cFondo" value="#ffffff"></label>
+            <label>Panel: <input type="color" id="cPanel" value="#ffffff"></label>
+            <label>Primario: <input type="color" id="cPrimario" value="#0d6efd"></label>
+            <label>Texto: <input type="color" id="cTexto" value="#111111"></label>
+            <label>Sub-texto: <input type="color" id="cSubtexto" value="#6b7280"></label>
+            <div class="actions-row">
+              <button id="btnGuardarTema" class="btn primary">Guardar tema</button>
+              <button id="btnResetTema" class="btn">Restablecer</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Vista previa</h3>
+            <div class="preview">
+              <div class="preview-sidebar">Menú</div>
+              <div class="preview-panel">Panel</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Datos negocio -->
+      <div class="tabpanel" id="tab-negocio">
+        <div class="grid two">
+          <div class="card">
+            <h3>Datos del negocio</h3>
+            <label>Nombre: <input id="negNombre" type="text" placeholder="Farmacia Ejemplo" /></label>
+            <label>Dirección: <input id="negDir" type="text" placeholder="Calle 123, CDMX" /></label>
+            <label>Teléfono: <input id="negTel" type="text" placeholder="55..." /></label>
+            <label>Email: <input id="negMail" type="email" placeholder="correo@dominio.com" /></label>
+            <label>Logo: <input id="negLogo" type="file" accept="image/*" /></label>
+            <div class="actions-row">
+              <button id="btnGuardarNeg" class="btn primary">Guardar datos</button>
+            </div>
+          </div>
+          <div class="card center">
+            <h3>Vista en menú</h3>
+            <div class="menu-preview">
+              <img id="menuLogoPreview" alt="Logo menú" />
+              <span>Farmacia DP v1</span>
+            </div>
+            <h3>Vista en ticket</h3>
+            <div class="ticket-preview">
+              <img id="ticketLogoPreview" alt="Logo ticket" />
+              <div class="ticket-paper">
+                <p id="ticketHeader">Nombre — Dirección — Tel — Email</p>
+                <hr />
+                <p>Producto A x2 $50</p>
+                <p>Total: $100</p>
+                <hr />
+                <p>¡Gracias por su compra!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ticket -->
+      <div class="tabpanel" id="tab-ticket">
+        <div class="card">
+          <h3>Mensaje del ticket</h3>
+          <input id="ticketMensaje" type="text" placeholder="Gracias por su compra" />
+          <button id="btnGuardarTicket" class="btn primary">Guardar</button>
+          <p class="muted">El logo del ticket viene de “Datos del negocio”. Se renderiza y escala automáticamente.</p>
+        </div>
+      </div>
+
+      <!-- Respaldos -->
+      <div class="tabpanel" id="tab-respaldo">
+        <div class="card">
+          <h3>Respaldos</h3>
+          <button id="btnExportar" class="btn">Exportar respaldo</button>
+          <label class="inline">Importar: <input id="importFile" type="file" accept=".json,.zip,.xlsx" /></label>
+          <button id="btnImportar" class="btn primary">Importar</button>
+          <p class="muted">Formato v1: JSON con productos, lotes, clientes, ventas, items y config.</p>
+        </div>
+      </div>
+
+      <!-- Web (placeholder) -->
+      <div class="tabpanel" id="tab-web">
+        <div class="card">
+          <h3>Módulo web (próxima área)</h3>
+          <p>Aquí podrás activar una tienda en línea y/o subir una plantilla HTML para publicarla.</p>
+          <button class="btn" disabled>Activar próximamente</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
