@@ -48,7 +48,7 @@ function applyTheme(){
 }
 
 /* Escala y recorta logo para vistas (menú/ticket) */
-async function fileToDataURL(file, maxW=320, maxH=320){
+async function fileToDataURL(file, maxW=320, maxH=160){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onload = () => {
@@ -79,15 +79,8 @@ function formatMoney(n){ return new Intl.NumberFormat('es-MX',{style:'currency',
 function setActiveSection(id){
   state.activeSection = id;
   saveLocal();
-  // botones
-  $$('.nav-link').forEach(btn=>{
-    btn.classList.toggle('active', btn.dataset.section===id);
-  });
-  // vistas
-  $$('.view').forEach(v=>{
-    v.classList.toggle('active', v.id===id);
-  });
-  // título
+  $$('.nav-link').forEach(btn=> btn.classList.toggle('active', btn.dataset.section===id));
+  $$('.view').forEach(v=> v.classList.toggle('active', v.id===id));
   $('#sectionTitle').textContent = id.charAt(0).toUpperCase()+id.slice(1);
 }
 
@@ -97,13 +90,10 @@ function initSidebar(){
   const btnToggle = $('#btnToggle');
   const btnOpen = $('#btnOpen');
 
-  btnToggle.addEventListener('click', ()=>{
-    sidebar.classList.toggle('collapsed');
-  });
+  btnToggle.addEventListener('click', ()=> sidebar.classList.toggle('collapsed'));
 
   // móvil
   btnOpen.addEventListener('click', ()=> sidebar.classList.add('open'));
-  // cerrar tocando fuera (opcional)
   document.addEventListener('click', (e)=>{
     const isSidebar = sidebar.contains(e.target) || e.target===btnOpen;
     if(!isSidebar && window.matchMedia('(max-width: 820px)').matches){
@@ -174,7 +164,6 @@ function initConfig(){
     state.config.negocio.tel = $('#negTel').value.trim();
     state.config.negocio.mail = $('#negMail').value.trim();
     saveLocal();
-    // refrescar encabezado de ticket preview
     $('#ticketHeader').textContent =
       `${state.config.negocio.nombre||'Nombre'} — ${state.config.negocio.dir||'Dirección'} — ${state.config.negocio.tel||'Tel'} — ${state.config.negocio.mail||'Email'}`;
     alert('Datos del negocio guardados');
@@ -188,7 +177,7 @@ function initConfig(){
     alert('Mensaje de ticket guardado');
   });
 
-  // Respaldos (placeholders funcionales mínimos)
+  // Respaldos (demo)
   $('#btnExportar').addEventListener('click', ()=>{
     const payload = {
       version: 'v1',
@@ -213,7 +202,6 @@ function initConfig(){
       if(json?.config){
         state.config = json.config;
         applyTheme();
-        // volver a setear campos
         for(const key in cIds) $('#'+cIds[key]).value = state.config.colors[key];
         $('#negNombre').value = state.config.negocio.nombre || '';
         $('#negDir').value = state.config.negocio.dir || '';
@@ -226,7 +214,7 @@ function initConfig(){
           $('#ticketLogoPreview').src = state.config.negocio.logoDataUrl;
         }
         saveLocal();
-        alert('Respaldo importado (config). Datos de negocio y colores aplicados.');
+        alert('Respaldo importado (config).');
       }else{
         alert('Archivo inválido o sin estructura reconocida.');
       }
@@ -234,7 +222,7 @@ function initConfig(){
   });
 }
 
-/* ========== Ventas: UI base (sin lógica de stock aún) ========== */
+/* ========== Ventas: UI base (sin lógica de stock) ========== */
 function initVentasUI(){
   const carrito = $('#carritoPanel');
   const btnMovil = $('#btnCarritoMovil');
@@ -247,16 +235,15 @@ function initVentasUI(){
   btnMovil.addEventListener('click', ()=> carrito.classList.toggle('open'));
 
   // preview receta
-  recetaFile.addEventListener('change', async (e)=>{
+  recetaFile.addEventListener('change', (e)=>{
     const file = e.target.files?.[0];
     if(!file){ recetaPreview.style.display='none'; return; }
-    let url;
     if(file.type.startsWith('image/')){
-      url = URL.createObjectURL(file);
+      const url = URL.createObjectURL(file);
       recetaPreview.src = url;
       recetaPreview.style.display = 'block';
     }else{
-      recetaPreview.style.display = 'none'; // PDFs no se previsualizan aquí
+      recetaPreview.style.display = 'none'; // PDFs: sin previsualización
     }
   });
 
@@ -269,8 +256,6 @@ function initVentasUI(){
     if(e.key === 'Enter'){
       const code = barcodeInput.value.trim();
       if(!code) return;
-      // aquí luego: buscar producto por barcode y agregar al carrito
-      // por ahora solo feedback visual:
       alert(`Escaneado: ${code} (demo)`);
       barcodeInput.value = '';
     }
@@ -312,13 +297,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
   initConfig();
   initVentasUI();
 
-  // aplica logo si ya había
   if(state.config.negocio.logoDataUrl){
     $('#menuLogo').src = state.config.negocio.logoDataUrl;
     $('#menuLogoPreview').src = state.config.negocio.logoDataUrl;
     $('#ticketLogoPreview').src = state.config.negocio.logoDataUrl;
   }
 
-  // restaura sección activa
   setActiveSection(state.activeSection || 'dashboard');
 });
