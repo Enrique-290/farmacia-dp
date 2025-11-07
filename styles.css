@@ -1,57 +1,29 @@
-:root{
-  --bg:#f6f8fb; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --brand:#22a3ff;
-  --line:#e5e7eb; --ok:#16a34a; --danger:#ef4444;
+/* ==== DASHBOARD (AISLADO) ==== */
+#tab-dashboard { display:block; }
+.dash { display:grid; gap:12px; }
+.dash-kpis {
+  display:grid;
+  grid-template-columns: repeat(7, minmax(140px,1fr));
+  gap:10px;
 }
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,Segoe UI,Roboto}
-.sidebar{position:fixed;left:0;top:0;bottom:0;width:230px;background:var(--panel);border-right:1px solid var(--line);padding:16px}
-.brand{font-weight:800;margin-bottom:10px}
-.sidebar nav{display:grid;gap:8px}
-.sidebar button{all:unset;padding:10px 12px;border-radius:10px;cursor:pointer;border:1px solid var(--line)}
-.sidebar button.active{background:#eaf6ff;border-color:#bfe6ff}
-.main{margin-left:230px;padding:16px;max-width:1200px}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;gap:6px}
-.kpi span{color:var(--muted);font-size:12px}
+@media (max-width:1280px){ .dash-kpis{ grid-template-columns: repeat(4,1fr);} }
+@media (max-width:768px){ .dash-kpis{ grid-template-columns: repeat(2,1fr);} }
 
-.row{display:flex;gap:8px;align-items:center}
-.mt{margin-top:12px}
-.input,.select,.btn{padding:10px;border-radius:10px;border:1px solid var(--line);background:#fff}
-.input:focus,.select:focus{outline:none;border-color:#bfe6ff;box-shadow:0 0 0 3px #eaf6ff}
-.btn{cursor:pointer}
-.btn.primary{background:linear-gradient(180deg,#22a3ff,#1a7fd1);color:#fff;border-color:#1a7fd1}
-.btn.ghost{background:#fff}
-.btn.danger{background:#fee2e2;border-color:#fecaca;color:#991b1b}
+.dash-card {
+  background: var(--panel, #fff);
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 12px;
+  padding: 10px;
+}
+.dash-kpi-title { font-size:12px; opacity:.75; }
+.dash-kpi-big { font-weight:800; font-size:20px; line-height:1.1; margin-top:6px; }
+.dash-kpi-big.small{ font-size:14px; font-weight:700; }
 
-.ventas{display:grid;grid-template-columns:1fr 380px;gap:12px}
-.catalogo .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
-@media (max-width:1280px){.catalogo .grid{grid-template-columns:repeat(3,1fr)}}
-@media (max-width:1024px){.catalogo .grid{grid-template-columns:repeat(2,1fr)}.ventas{grid-template-columns:1fr}}
-@media (max-width:640px){.catalogo .grid{grid-template-columns:1fr}}
+.dash-grid { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
+@media (max-width:1024px){ .dash-grid{ grid-template-columns:1fr; } }
 
-.card, .catalogo .item, .carrito, .tabla, .chips, .card{background:var(--panel);border:1px solid var(--line);border-radius:12px}
-.catalogo .item{padding:10px}
-.catalogo .item h4{margin:0 0 4px 0;font-size:14px}
-.tag{font-size:11px;color:var(--muted)}
-.catalogo .item .foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
-
-.carrito{padding:12px;position:sticky;top:12px;min-width:0}
-.carrito h3{margin:0 0 6px 0}
-.extras{display:grid;grid-template-columns:1fr 110px 1fr;gap:6px;margin:8px 0}
-@media (max-width:1024px){.extras{grid-template-columns:1fr 110px 1fr}}
-.pago{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
-.resumen{border-top:1px dashed var(--line);padding-top:8px;margin-top:8px;display:grid;gap:4px}
-.linea{display:grid;grid-template-columns:1fr 64px 70px 24px;gap:6px;align-items:center;border-bottom:1px dotted var(--line);padding:6px 0}
-.linea .tipo{font-size:11px;color:var(--muted)}
-.linea .btn{padding:6px}
-
-.tabla{width:100%;border-collapse:collapse}
-.tabla th,.tabla td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
-
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.card{padding:12px}
-.gridForm{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.gridForm input, .gridForm button{min-width:0}
-
-.chips{padding:10px;display:flex;gap:8px;flex-wrap:wrap}
-.chip{padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:#fff}
+.dash-card-title { font-weight:700; margin-bottom:6px; }
+.dash-list { margin:0; padding-left:18px; display:grid; gap:6px; }
+.dash-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.dash-table { width:100%; border-collapse:collapse; }
+.dash-table th, .dash-table td { padding:8px; border-bottom:1px solid var(--line, #e5e7eb); }

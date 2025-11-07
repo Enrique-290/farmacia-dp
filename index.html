@@ -1,173 +1,95 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Farmacia DP — TPV + Bodega</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <aside class="sidebar">
-    <div class="brand">Farmacia DP</div>
-    <nav>
-      <button data-tab="ventas" class="active">🛒 Ventas</button>
-      <button data-tab="inventario">📦 Inventario</button>
-      <button data-tab="bodega">🏬 Bodega</button>
-      <button data-tab="reportes">📈 Reportes</button>
-      <button data-tab="config">⚙️ Config</button>
-    </nav>
-  </aside>
+<!-- En tu NAV, coloca el botón primero -->
+<button data-tab="dashboard" class="active">📊 Dashboard</button>
+<!-- (y mueve el "active" al que corresponda en tu app) -->
 
-  <main class="main">
+<!-- Sección DASHBOARD (colócala al inicio del <main>) -->
+<section id="tab-dashboard">
+  <div class="dash">
     <!-- KPIs -->
-    <section class="kpis">
-      <div class="kpi"><span>Ventas hoy</span><strong id="kpiHoy">$0.00</strong></div>
-      <div class="kpi"><span>Tickets</span><strong id="kpiTickets">0</strong></div>
-      <div class="kpi"><span>IVA</span><strong id="kpiIVA">0%</strong></div>
-      <div class="kpi"><span>Top ítem</span><strong id="kpiTop">—</strong></div>
-    </section>
-
-    <!-- VENTAS -->
-    <section id="tab-ventas">
-      <div class="ventas">
-        <div class="catalogo">
-          <div class="row">
-            <input id="buscador" class="input" placeholder="Buscar nombre o SKU…">
-            <select id="filtroTipo" class="select">
-              <option value="todos">Todos</option>
-              <option value="producto">Productos</option>
-              <option value="servicio">Servicios</option>
-            </select>
-          </div>
-          <div id="gridProductos" class="grid"></div>
-        </div>
-
-        <aside class="carrito">
-          <h3>Carrito</h3>
-          <div id="lineas"></div>
-
-          <!-- EXTRAS alineados en una fila -->
-          <div class="extras">
-            <input id="extraDesc" class="input" placeholder="Descripción (ej. Curación)">
-            <input id="extraMonto" class="input" type="number" step="0.01" placeholder="$">
-            <button id="btnAddExtra" class="btn">Agregar extra</button>
-          </div>
-
-          <!-- RECETA (opcional) -->
-          <div class="bloque">
-            <label class="label">Receta del paciente (PDF/imagen):</label>
-            <input type="file" id="archivoReceta" class="input">
-          </div>
-
-          <!-- PAGO SIEMPRE VISIBLE -->
-          <div class="pago">
-            <select id="tipoPago" class="select">
-              <option value="Efectivo" selected>Efectivo</option>
-              <option value="Tarjeta">Tarjeta</option>
-              <option value="Transferencia">Transferencia</option>
-              <option value="Mixto">Mixto</option>
-            </select>
-            <input id="referenciaPago" class="input" placeholder="Referencia / notas">
-          </div>
-
-          <div id="resumen" class="resumen"></div>
-          <div class="acciones">
-            <button id="btnCobrar" class="btn primary">Cobrar</button>
-            <button id="btnVaciar" class="btn ghost">Vaciar</button>
-          </div>
-        </aside>
+    <div class="dash-kpis">
+      <div class="dash-card">
+        <div class="dash-kpi-title">Ventas hoy</div>
+        <div class="dash-kpi-big" id="db_ventas_hoy">$0.00</div>
       </div>
-    </section>
-
-    <!-- INVENTARIO (piso/mostrador) -->
-    <section id="tab-inventario" style="display:none">
-      <div class="row">
-        <h3>Inventario (Mostrador)</h3>
-        <button id="btnNuevoItem" class="btn">+ Nuevo</button>
+      <div class="dash-card">
+        <div class="dash-kpi-title">Tickets hoy</div>
+        <div class="dash-kpi-big" id="db_tickets_hoy">0</div>
       </div>
-      <table class="tabla" id="tablaInventario">
-        <thead>
-          <tr><th>SKU</th><th>Nombre</th><th>Tipo</th><th>Stock Piso</th><th>Stock Bodega</th><th>Precio</th><th>Solicitar</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </section>
+      <div class="dash-card">
+        <div class="dash-kpi-title">Promedio ticket</div>
+        <div class="dash-kpi-big" id="db_prom_ticket">$0.00</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-kpi-title">IVA hoy</div>
+        <div class="dash-kpi-big" id="db_iva_hoy">$0.00</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-kpi-title">Ventas del mes</div>
+        <div class="dash-kpi-big" id="db_ventas_mes">$0.00</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-kpi-title">Top producto (hoy)</div>
+        <div class="dash-kpi-big small" id="db_top_prod">—</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-kpi-title">Top servicio (hoy)</div>
+        <div class="dash-kpi-big small" id="db_top_serv">—</div>
+      </div>
+    </div>
 
-    <!-- BODEGA -->
-    <section id="tab-bodega" style="display:none">
-      <div class="grid2">
-        <div class="card">
-          <h3>Ingresar a Bodega</h3>
-          <div class="gridForm">
-            <input id="inSku" class="input" placeholder="SKU">
-            <input id="inNombre" class="input" placeholder="Nombre (si es nuevo)">
-            <input id="inLote" class="input" placeholder="Lote">
-            <input id="inCad" class="input" type="date" placeholder="Caducidad">
-            <input id="inCant" class="input" type="number" min="1" placeholder="Cantidad">
-            <input id="inCosto" class="input" type="number" step="0.01" placeholder="Costo (opcional)">
-            <button id="btnIngresar" class="btn primary">Ingresar</button>
-          </div>
-        </div>
+    <!-- Alertas -->
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="dash-card-title">Alertas</div>
+        <ul class="dash-list" id="db_alertas"></ul>
+      </div>
 
-        <div class="card">
-          <h3>Surtir a Inventario</h3>
-          <div class="gridForm">
-            <input id="suSku" class="input" placeholder="SKU">
-            <input id="suCant" class="input" type="number" min="1" placeholder="Cantidad">
-            <button id="btnSurtir" class="btn">Mover (FIFO cad)</button>
-          </div>
+      <!-- Accesos rápidos -->
+      <div class="dash-card">
+        <div class="dash-card-title">Accesos rápidos</div>
+        <div class="dash-actions">
+          <button class="btn" data-goto="ventas">Nueva venta</button>
+          <button class="btn" data-goto="bodega">Ingresar a bodega</button>
+          <button class="btn" data-goto="bodega">Surtir a inventario</button>
+          <button class="btn" data-goto="inventario">Nueva solicitud</button>
+          <button class="btn" data-goto="clientes">Nuevo cliente</button>
+          <button class="btn" data-goto="reportes">Reporte diario</button>
         </div>
       </div>
+    </div>
 
-      <div class="row mt">
-        <h3>Solicitudes desde Inventario</h3>
-        <button id="btnAtenderTodo" class="btn ghost">Atender todo (si alcanza)</button>
+    <!-- Gráficas -->
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="dash-card-title">Ventas últimos 7 días</div>
+        <canvas id="db_chart_7d" height="140"></canvas>
       </div>
-      <table class="tabla" id="tablaSolicitudes">
-        <thead><tr><th>ID</th><th>SKU</th><th>Nombre</th><th>Solicitado</th><th>Estado</th><th>Acción</th></tr></thead>
-        <tbody></tbody>
-      </table>
-
-      <div class="row mt"><h3>Kardex</h3></div>
-      <table class="tabla" id="tablaKardex">
-        <thead><tr><th>Fecha</th><th>SKU</th><th>Tipo</th><th>Detalle</th><th>Cant</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <!-- REPORTES / CONFIG -->
-    <section id="tab-reportes" style="display:none">
-      <h3>Resumen</h3>
-      <div id="resumenReporte" class="chips"></div>
-    </section>
-
-    <section id="tab-config" style="display:none">
-      <h3>Parámetros</h3>
-      <div class="row">
-        <label class="label">IVA (%)</label>
-        <input id="iva" class="input" type="number" min="0" max="30" step="0.01" value="0">
-        <button id="btnIVA" class="btn">Aplicar</button>
+      <div class="dash-card">
+        <div class="dash-card-title">Formas de pago</div>
+        <canvas id="db_chart_pago" height="140"></canvas>
       </div>
-      <div class="row mt">
-        <button id="btnGuardar" class="btn">💾 Guardar</button>
-        <button id="btnRestaurar" class="btn ghost">⟳ Restaurar</button>
-        <button id="btnWipe" class="btn danger">🗑️ Borrar todo</button>
+      <div class="dash-card">
+        <div class="dash-card-title">Surtidos (solicitado vs atendido, 7 días)</div>
+        <canvas id="db_chart_surtidos" height="140"></canvas>
       </div>
-    </section>
-  </main>
+    </div>
 
-  <!-- Modal reutilizable -->
-  <dialog id="modal">
-    <form method="dialog" id="modalForm">
-      <h3 id="modalTitle">Nuevo</h3>
-      <div id="modalBody"></div>
-      <menu>
-        <button value="cancel" class="btn ghost">Cancelar</button>
-        <button value="ok" class="btn primary">Guardar</button>
-      </menu>
-    </form>
-  </dialog>
-
-  <script src="app.js"></script>
-</body>
-</html>
+    <!-- Listas recientes -->
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="dash-card-title">Últimas 10 ventas</div>
+        <table class="table dash-table">
+          <thead><tr><th>Fecha</th><th>Pago</th><th>Total</th><th></th></tr></thead>
+          <tbody id="db_ult_ventas"></tbody>
+        </table>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-title">Kardex reciente</div>
+        <table class="table dash-table">
+          <thead><tr><th>Fecha</th><th>SKU</th><th>Tipo</th><th>Detalle</th><th>Cant</th></tr></thead>
+          <tbody id="db_kardex"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>

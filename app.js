@@ -1,341 +1,211 @@
-// ---------- Estado & utilidades ----------
-const $ = s => document.querySelector(s);
-const $$ = s => document.querySelectorAll(s);
-const money = n => (n||0).toLocaleString('es-MX',{style:'currency',currency:'MXN'});
-const db = {
-  load(){ try { return JSON.parse(localStorage.getItem('farmacia-state')) } catch { return null } },
-  save(s){ localStorage.setItem('farmacia-state', JSON.stringify(s)) }
-};
+// ======= Parámetros Dashboard =======
+const DB_DIAS_CAD = 30;            // umbral caducidad
+const DB_STOCK_CRITICO = 5;        // badge crítico fijo (rojo). Stock bajo usa item.stock_min si existe
 
-let state = db.load() || {
-  config:{ iva:0 },
-  items:[
-    {sku:'CONS-MED', nombre:'Consulta médica', tipo:'servicio', precio:100},
-    {sku:'PARA-500', nombre:'Paracetamol 500mg', tipo:'producto', precio:25, stock_bodega:30, stock_inventario:10, lotes:[
-      {lote:'L1', cad:'2026-06-30', stock:20},{lote:'L2', cad:'2027-01-31', stock:10}
-    ]},
-    {sku:'AMOX-500', nombre:'Amoxicilina 500mg', tipo:'producto', precio:60, stock_bodega:18, stock_inventario:8, lotes:[
-      {lote:'A1', cad:'2026-02-28', stock:18}
-    ]}
-  ],
-  cart:[],
-  sales:[],
-  solicitudes:[],  // {id, sku, qty, estado:'Pendiente'|'Atendida'|'Parcial'}
-  kardex:[]        // {fecha, sku, tipo, detalle, cant}
-};
+// ======= Helpers comunes =======
+const fmtDate = iso => new Date(iso).toLocaleString('es-MX');
+const todayISO = () => new Date().toISOString().slice(0,10);
+const firstDayOfMonthISO = () => { const d=new Date(); d.setDate(1); return d.toISOString().slice(0,10); };
 
-function persist(){ db.save(state); refreshKPIs(); }
-
-// ---------- Navegación ----------
-$$('.sidebar nav button').forEach(b=>{
-  b.onclick = ()=>{
-    $$('.sidebar nav button').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active');
-    ['ventas','inventario','bodega','reportes','config'].forEach(id=>{
-      document.querySelector('#tab-'+id).style.display = (b.dataset.tab===id)?'block':'none';
-    });
-    if(b.dataset.tab==='ventas'){ renderCatalog(); renderCart(); }
-    if(b.dataset.tab==='inventario'){ renderInventario(); }
-    if(b.dataset.tab==='bodega'){ renderSolicitudes(); renderKardex(); }
-    if(b.dataset.tab==='reportes'){ renderResumen(); }
-    if(b.dataset.tab==='config'){ $('#iva').value = state.config.iva||0; }
-  };
+// ======= Navegación rápida (Accesos rápidos) =======
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.dash-actions .btn');
+  if(!btn) return;
+  const tab = btn.getAttribute('data-goto');
+  if(!tab) return;
+  // Activa tab (usa tu manejador existente si tienes)
+  document.querySelectorAll('nav button[data-tab]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.tab===tab);
+  });
+  ['dashboard','ventas','inventario','bodega','clientes','historial','reportes','config'].forEach(id=>{
+    const sec = document.querySelector('#tab-'+id);
+    if(sec) sec.style.display = (id===tab)?'block':'none';
+  });
 });
 
-// ---------- KPIs ----------
-function refreshKPIs(){
-  const hoy = new Date().toISOString().slice(0,10);
-  const ventasHoy = state.sales.filter(v=>v.fecha.startsWith(hoy));
-  $('#kpiHoy').textContent = money(ventasHoy.reduce((a,v)=>a+v.total,0));
-  $('#kpiTickets').textContent = ventasHoy.length;
-  $('#kpiIVA').textContent = (state.config.iva||0)+'%';
-  const cont = {};
-  state.sales.forEach(v=> v.items.forEach(i=> cont[i.sku]=(cont[i.sku]||0)+i.cant ));
-  const topSku = Object.entries(cont).sort((a,b)=>b[1]-a[1])[0]?.[0];
-  $('#kpiTop').textContent = topSku ? (state.items.find(it=>it.sku===topSku)?.nombre||topSku) : '—';
+// ======= Render principal =======
+function renderDashboard(){
+  renderKPIs();
+  renderAlertas();
+  renderGrafica7d();
+  renderGraficaPago();
+  renderGraficaSurtidos();
+  renderUltimasVentas();
+  renderKardexReciente();
 }
-refreshKPIs();
 
-// ======================================================
-// VENTAS
-// ======================================================
-function renderCatalog(){
-  const q = ($('#buscador').value||'').toLowerCase();
-  const filtro = $('#filtroTipo').value;
-  const grid = $('#gridProductos'); grid.innerHTML='';
-  state.items
-    .filter(i => !q || i.nombre.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q))
-    .filter(i => filtro==='todos' || i.tipo===filtro)
-    .forEach(i=>{
-      const div = document.createElement('div');
-      div.className='item';
-      const stockTxt = i.tipo==='producto' ? ` · Stock piso: ${i.stock_inventario||0}` : '';
-      div.innerHTML = `
-        <h4>${i.nombre}</h4>
-        <div class="tag">${i.sku} · ${i.tipo==='producto'?'Producto':'Servicio'}${stockTxt}</div>
-        <div class="foot">
-          <strong>${money(i.precio)}</strong>
-          <div class="row">
-            <button class="btn add" ${i.tipo==='producto' && (i.stock_inventario||0)<=0?'disabled':''}>Agregar</button>
-            ${i.tipo==='producto'?`<button class="btn ghost solicitar">Solicitar</button>`:''}
-          </div>
-        </div>`;
-      div.querySelector('.add').onclick = ()=> addToCart(i.sku);
-      if(i.tipo==='producto') div.querySelector('.solicitar').onclick = ()=> solicitar(i.sku, 5);
-      grid.appendChild(div);
+// --- KPIs
+function renderKPIs(){
+  const hoy = todayISO();
+  const ventasHoy = (state.sales||[]).filter(v=> (v.fecha||'').startsWith(hoy));
+  const totalHoy = ventasHoy.reduce((a,v)=>a+v.total,0);
+  const ivaHoy = ventasHoy.reduce((a,v)=>a+v.iva,0);
+  const prom = ventasHoy.length? totalHoy/ventasHoy.length : 0;
+
+  const mesIni = firstDayOfMonthISO();
+  const ventasMes = (state.sales||[]).filter(v=> (v.fecha||'')>=mesIni);
+  const totalMes = ventasMes.reduce((a,v)=>a+v.total,0);
+
+  // Top producto/servicio HOY
+  let mapProd={}, mapServ={};
+  ventasHoy.forEach(v=> v.items.forEach(it=>{
+    const tipo = (state.items.find(p=>p.sku===it.sku)?.tipo)||'producto';
+    if(tipo==='servicio') mapServ[it.sku]=(mapServ[it.sku]||0)+it.cant;
+    else mapProd[it.sku]=(mapProd[it.sku]||0)+it.cant;
+  }));
+  const topP = Object.entries(mapProd).sort((a,b)=>b[1]-a[1])[0]?.[0];
+  const topS = Object.entries(mapServ).sort((a,b)=>b[1]-a[1])[0]?.[0];
+  const nombre = sku => state.items.find(i=>i.sku===sku)?.nombre || '—';
+
+  document.getElementById('db_ventas_hoy').textContent = money(totalHoy);
+  document.getElementById('db_tickets_hoy').textContent = ventasHoy.length;
+  document.getElementById('db_prom_ticket').textContent = money(prom);
+  document.getElementById('db_iva_hoy').textContent = money(ivaHoy);
+  document.getElementById('db_ventas_mes').textContent = money(totalMes);
+  document.getElementById('db_top_prod').textContent = topP ? nombre(topP) : '—';
+  document.getElementById('db_top_serv').textContent = topS ? nombre(topS) : '—';
+}
+
+// --- Alertas
+function renderAlertas(){
+  const UL = document.getElementById('db_alertas'); UL.innerHTML='';
+  const alertas = [];
+
+  // 1) Solicitudes pendientes/parciales
+  const pend = (state.solicitudes||[]).filter(s=> s.estado==='Pendiente' || s.estado==='Parcial').length;
+  if(pend>0) alertas.push(`🔔 Solicitudes sin atender: ${pend}`);
+
+  // 2) Stock bajo (usa stock_min si existe, de lo contrario 5)
+  (state.items||[]).forEach(it=>{
+    if(it.tipo==='producto'){
+      const min = Number.isFinite(it.stock_min)? it.stock_min : 5;
+      if((it.stock_inventario||0) > 0 && (it.stock_inventario||0) <= min){
+        alertas.push(`⚠️ Stock bajo en piso: ${it.nombre} (piso ${it.stock_inventario} / min ${min})`);
+      }
+      if((it.stock_inventario||0) === 0 && (it.stock_bodega||0) > 0){
+        alertas.push(`🟡 Sin piso con bodega disponible: ${it.nombre} (sugerir Surtir)`);
+      }
+      if((it.stock_inventario||0) <= DB_STOCK_CRITICO){
+        alertas.push(`🟥 Stock crítico: ${it.nombre} (piso ${it.stock_inventario ?? 0})`);
+      }
+    }
+  });
+
+  // 3) Próximos a caducar (≤ 30 días) y caducados (bodega y/o piso si manejas lotes de piso)
+  const hoy = new Date();
+  const ms30 = DB_DIAS_CAD*24*60*60*1000;
+  (state.items||[]).forEach(it=>{
+    if(it.tipo!=='producto') return;
+    const lotes = (it.lotes||[]);
+    lotes.forEach(L=>{
+      const d = new Date(L.cad);
+      const diff = d - hoy;
+      if(L.stock>0){
+        if(diff<0) alertas.push(`🛑 Caducado: ${it.nombre} (lote ${L.lote}, ${L.cad})`);
+        else if(diff<=ms30) alertas.push(`⏳ Próximo a caducar: ${it.nombre} (lote ${L.lote}, ${L.cad})`);
+      }
     });
-}
-$('#buscador').oninput = renderCatalog; $('#filtroTipo').onchange = renderCatalog;
-
-function addToCart(sku){
-  const it = state.items.find(x=>x.sku===sku);
-  if(!it) return;
-  if(it.tipo==='producto' && (it.stock_inventario||0)<=0) return alert('Sin stock en piso.');
-  const ex = state.cart.find(l=>l.sku===sku);
-  if(ex){
-    if(it.tipo==='producto' && ex.cant+1 > (it.stock_inventario||0)) return alert('No hay más stock en piso.');
-    ex.cant++;
-  }else{
-    state.cart.push({sku:it.sku,nombre:it.nombre,precio:it.precio,tipo:it.tipo,cant:1});
-  }
-  renderCart();
-}
-
-$('#btnAddExtra').onclick = ()=>{
-  const desc = ($('#extraDesc').value||'').trim();
-  const monto = parseFloat($('#extraMonto').value||'');
-  if(!desc || isNaN(monto) || monto<=0) return alert('Completa extra y monto.');
-  state.cart.push({sku:'EXTRA',nombre:`Extra: ${desc}`,precio:monto,tipo:'servicio',cant:1});
-  $('#extraDesc').value=''; $('#extraMonto').value='';
-  renderCart();
-};
-
-$('#btnVaciar').onclick = ()=>{ state.cart=[]; renderCart(); };
-
-function renderCart(){
-  const cont = $('#lineas'); cont.innerHTML='';
-  let sub=0;
-  state.cart.forEach(l=>{
-    sub += l.precio*l.cant;
-    const row = document.createElement('div'); row.className='linea';
-    row.innerHTML = `
-      <div>
-        <div><strong>${l.nombre}</strong></div>
-        <div class="tipo">${l.tipo==='producto'?'Producto':'Servicio'}</div>
-      </div>
-      <input type="number" min="1" value="${l.cant}" class="input">
-      <div>${money(l.precio)}</div>
-      <button class="btn">✕</button>`;
-    row.querySelector('input').onchange = e=>{ l.cant = Math.max(1, parseInt(e.target.value||1)); renderCart(); };
-    row.querySelector('button').onclick = ()=>{ state.cart = state.cart.filter(x=>x!==l); renderCart(); };
-    cont.appendChild(row);
   });
-  const iva = sub*(state.config.iva||0)/100;
-  const total = sub+iva;
-  $('#resumen').innerHTML = `
-    <div class="row"><span>Subtotal</span><strong class="right">${money(sub)}</strong></div>
-    <div class="row"><span>IVA ${(state.config.iva||0)}%</span><strong class="right">${money(iva)}</strong></div>
-    <div class="row"><span>Total</span><strong class="right">${money(total)}</strong></div>`;
-}
 
-$('#btnCobrar').onclick = ()=>{
-  if(state.cart.length===0) return alert('Carrito vacío.');
-  // validar stock de piso
-  for(const l of state.cart){
-    if(l.tipo==='producto'){
-      const it = state.items.find(x=>x.sku===l.sku);
-      if(!it || (it.stock_inventario||0) < l.cant) return alert(`Stock insuficiente en piso: ${l.nombre}`);
-    }
-  }
-  // descontar stock de piso
-  state.cart.forEach(l=>{
-    if(l.tipo==='producto'){
-      const it = state.items.find(x=>x.sku===l.sku);
-      it.stock_inventario -= l.cant;
-    }
+  if(alertas.length===0) alertas.push('✅ Sin alertas por ahora.');
+  alertas.slice(0,20).forEach(t=>{
+    const li = document.createElement('li'); li.textContent = t; UL.appendChild(li);
   });
-  const subtotal = state.cart.reduce((a,l)=>a+l.precio*l.cant,0);
-  const iva = subtotal*(state.config.iva||0)/100;
-  const total = subtotal+iva;
-  const venta = {
-    id: Date.now(),
-    fecha: new Date().toISOString(),
-    items: JSON.parse(JSON.stringify(state.cart)),
-    pago: $('#tipoPago').value,
-    ref: ($('#referenciaPago').value||'').trim(),
-    subtotal, iva, total
-  };
-  state.sales.push(venta);
-  // limpiar carrito y reiniciar pago en Efectivo (como pediste)
-  state.cart=[]; $('#tipoPago').value='Efectivo'; $('#referenciaPago').value='';
-  renderCatalog(); renderCart(); persist();
-  alert('Venta registrada.');
-};
-
-// Solicitar a bodega (desde inventario o tarjetas)
-function solicitar(sku, qty){
-  const it = state.items.find(x=>x.sku===sku);
-  if(!it || it.tipo!=='producto') return;
-  const id = Date.now();
-  state.solicitudes.push({id, sku, qty, estado:'Pendiente'});
-  persist(); renderSolicitudes();
-  alert(`Solicitud creada (${it.nombre}) por ${qty}.`);
 }
 
-// ======================================================
-// INVENTARIO (piso) — ver stocks de piso y bodega
-// ======================================================
-function renderInventario(){
-  const tb = $('#tablaInventario tbody'); tb.innerHTML='';
-  state.items.forEach(i=>{
+// --- Gráfica 7 días (barras)
+function renderGrafica7d(){
+  const cvs = document.getElementById('db_chart_7d'); const ctx = cvs.getContext('2d');
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  const days = [...Array(7)].map((_,i)=>{
+    const d = new Date(); d.setDate(d.getDate()-(6-i)); return d;
+  });
+  const sums = days.map(d=>{
+    const k = d.toISOString().slice(0,10);
+    return (state.sales||[]).filter(v=> (v.fecha||'').startsWith(k)).reduce((a,v)=>a+v.total,0);
+  });
+  const max = Math.max(...sums,1);
+  const W=cvs.width, H=cvs.height, pad=20, bw=(W-2*pad)/7*0.7;
+  days.forEach((d,i)=>{
+    const x = pad + i*((W-2*pad)/7);
+    const h = (H-2*pad)*(sums[i]/max);
+    ctx.fillRect(x, H-pad-h, bw, h);   // usa el color por defecto del canvas
+    ctx.fillText((d.getDate()), x+2, H-5);
+  });
+}
+
+// --- Gráfica formas de pago (donut simple)
+function renderGraficaPago(){
+  const cvs = document.getElementById('db_chart_pago'); const ctx = cvs.getContext('2d');
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  const hoy = todayISO();
+  const pagos = {Efectivo:0, Tarjeta:0, Transferencia:0, Mixto:0};
+  (state.sales||[]).filter(v=> (v.fecha||'').startsWith(hoy)).forEach(v=>{
+    pagos[v.pago] = (pagos[v.pago]||0) + v.total;
+  });
+  const vals = Object.values(pagos); const total = vals.reduce((a,b)=>a+b,0)||1;
+  let ang= -Math.PI/2; const cx=cvs.width/2, cy=cvs.height/2, r=Math.min(cx,cy)-10, r2=r*0.6;
+  Object.keys(pagos).forEach(k=>{
+    const frac = pagos[k]/total;
+    const a2 = ang + frac*2*Math.PI;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,ang,a2); ctx.closePath(); ctx.fill();
+    ang = a2;
+  });
+  // agujero
+  ctx.globalCompositeOperation='destination-out';
+  ctx.beginPath(); ctx.arc(cx,cy,r2,0,Math.PI*2); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+  ctx.textAlign='center'; ctx.fillText('Hoy', cx, cy+4);
+}
+
+// --- Gráfica Surtidos (solicitado vs atendido últimos 7 días)
+function renderGraficaSurtidos(){
+  const cvs = document.getElementById('db_chart_surtidos'); const ctx = cvs.getContext('2d');
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  const days = [...Array(7)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(6-i)); return d.toISOString().slice(0,10); });
+  const solicitado = days.map(k=> (state.solicitudes||[]).filter(s=> (new Date(s.id)).toISOString().slice(0,10)===k).reduce((a,s)=>a+s.qty,0));
+  const atendido = days.map(k=> (state.kardex||[]).filter(m=> m.tipo==='Surtido' && (new Date(m.fecha.replace(/\//g,'-')) || new Date()).toDateString()=== new Date(k).toDateString()).reduce((a,m)=>a+m.cant,0));
+
+  const max = Math.max(...solicitado, ...atendido, 1);
+  const W=cvs.width,H=cvs.height,pad=20, step=(W-2*pad)/7, bw=step*0.35;
+  days.forEach((k,i)=>{
+    const x = pad + i*step;
+    const h1 = (H-2*pad)*(solicitado[i]/max);
+    const h2 = (H-2*pad)*(atendido[i]/max);
+    // serie 1
+    ctx.fillRect(x, H-pad-h1, bw, h1);
+    // serie 2
+    ctx.fillRect(x+bw+4, H-pad-h2, bw, h2);
+  });
+}
+
+// --- Listas recientes
+function renderUltimasVentas(){
+  const tb = document.getElementById('db_ult_ventas'); tb.innerHTML='';
+  const ult = (state.sales||[]).slice(-10).reverse();
+  ult.forEach(v=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${i.sku}</td>
-      <td>${i.nombre}</td>
-      <td>${i.tipo}</td>
-      <td>${i.tipo==='producto'?(i.stock_inventario||0):'—'}</td>
-      <td>${i.tipo==='producto'?(i.stock_bodega||0):'—'}</td>
-      <td>${money(i.precio)}</td>
-      <td>${i.tipo==='producto'?`<button class="btn solicitar">Solicitar</button>`:''}</td>`;
-    if(i.tipo==='producto') tr.querySelector('.solicitar').onclick = ()=> solicitar(i.sku, 10);
+    tr.innerHTML = `<td>${fmtDate(v.fecha)}</td><td>${v.pago||''}</td><td>${money(v.total)}</td>
+      <td><button class="btn btn-xs" data-reimprimir="${v.id}">Reimprimir</button></td>`;
+    tr.querySelector('[data-reimprimir]').onclick = ()=> reimprimirTicket(v);
+    tb.appendChild(tr);
+  });
+}
+function reimprimirTicket(venta){
+  // Llama tu función actual de ticket. Si no la tienes aislada, puedes reutilizar la de Ventas.
+  alert('Reimprimir (conecta aquí tu función de ticket existente).');
+}
+
+function renderKardexReciente(){
+  const tb = document.getElementById('db_kardex'); tb.innerHTML='';
+  (state.kardex||[]).slice(0,10).forEach(m=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${m.fecha}</td><td>${m.sku}</td><td>${m.tipo}</td><td>${m.detalle}</td><td>${m.cant}</td>`;
     tb.appendChild(tr);
   });
 }
 
-// (Modal para crear/editar ítems simples)
-$('#btnNuevoItem').onclick = ()=>{
-  const m = $('#modal'); $('#modalTitle').textContent='Nuevo ítem';
-  $('#modalBody').innerHTML = `
-    <div class="gridForm">
-      <select id="mTipo" class="select"><option value="producto">Producto</option><option value="servicio">Servicio</option></select>
-      <input id="mSku" class="input" placeholder="SKU">
-      <input id="mNombre" class="input" placeholder="Nombre">
-      <input id="mPrecio" class="input" type="number" step="0.01" placeholder="Precio">
-      <input id="mStockPiso" class="input" type="number" placeholder="Stock piso (solo producto)">
-    </div>`;
-  m.showModal();
-  m.addEventListener('close', ()=>{
-    if(m.returnValue!=='ok') return;
-    const tipo = $('#mTipo').value;
-    const it = { sku:$('#mSku').value.trim(), nombre:$('#mNombre').value.trim(), tipo, precio:parseFloat($('#mPrecio').value||0) };
-    if(!it.sku || !it.nombre || isNaN(it.precio)) return;
-    if(tipo==='producto'){ it.stock_inventario=parseInt($('#mStockPiso').value||0); it.stock_bodega=0; it.lotes=[]; }
-    state.items.push(it); persist(); renderInventario(); renderCatalog();
-  }, {once:true});
-};
-
-// ======================================================
-// BODEGA — ingresos, surtir FIFO por caducidad, solicitudes
-// ======================================================
-function addKardex(sku,tipo,detalle,cant){
-  state.kardex.unshift({fecha:new Date().toLocaleString('es-MX'), sku, tipo, detalle, cant});
-  renderKardex();
+// ======= Inicializar cuando entres a Dashboard =======
+if (document.querySelector('#tab-dashboard')) {
+  renderDashboard();
 }
-
-$('#btnIngresar').onclick = ()=>{
-  const sku = $('#inSku').value.trim();
-  const nombre = $('#inNombre').value.trim();
-  const lote = $('#inLote').value.trim();
-  const cad = $('#inCad').value;
-  const cant = parseInt($('#inCant').value||0);
-  if(!sku || !lote || !cad || !cant) return alert('Completa SKU, lote, caducidad y cantidad.');
-
-  let it = state.items.find(x=>x.sku===sku);
-  if(!it){
-    if(!nombre) return alert('SKU nuevo: proporciona nombre.');
-    it = {sku, nombre, tipo:'producto', precio:0, stock_bodega:0, stock_inventario:0, lotes:[]};
-    state.items.push(it);
-  }
-  if(it.tipo!=='producto') return alert('Solo productos en bodega.');
-  it.lotes = it.lotes||[];
-  it.lotes.push({lote, cad, stock:cant});
-  it.stock_bodega = (it.stock_bodega||0) + cant;
-  persist(); renderInventario(); addKardex(sku,'Ingreso',`Lote ${lote} cad ${cad}`, cant);
-  $('#inSku').value=$('#inNombre').value=$('#inLote').value=$('#inCad').value=$('#inCant').value='';
-  alert('Ingreso registrado en bodega.');
-};
-
-$('#btnSurtir').onclick = ()=> surtir($('#suSku').value.trim(), parseInt($('#suCant').value||0));
-$('#btnAtenderTodo').onclick = ()=>{
-  state.solicitudes.filter(s=>s.estado==='Pendiente').forEach(s=> surtir(s.sku, s.qty, s.id));
-};
-
-function surtir(sku, qty, solicitudId=null){
-  if(!sku || !qty || qty<=0) return alert('Completa SKU y cantidad.');
-  const it = state.items.find(x=>x.sku===sku && x.tipo==='producto');
-  if(!it) return alert('SKU no encontrado.');
-  // FIFO por cad
-  it.lotes = (it.lotes||[]).sort((a,b)=> a.cad.localeCompare(b.cad));
-  let restante = qty;
-  for(const L of it.lotes){
-    if(restante<=0) break;
-    const take = Math.min(L.stock, restante);
-    L.stock -= take; restante -= take;
-  }
-  // limpiar lotes vacíos y validar disponible
-  it.lotes = it.lotes.filter(L=>L.stock>0);
-  const movido = qty - restante;
-  if(movido<=0) return alert('No hay stock en bodega.');
-  it.stock_bodega = (it.stock_bodega||0) - movido;
-  it.stock_inventario = (it.stock_inventario||0) + movido;
-
-  // actualizar solicitud si viene de una
-  if(solicitudId){
-    const s = state.solicitudes.find(x=>x.id===solicitudId);
-    if(s){ s.estado = (movido>=s.qty)?'Atendida':'Parcial'; s.qty -= movido; if(s.qty<0) s.qty=0; }
-  }
-  persist(); renderInventario(); renderSolicitudes(); addKardex(sku,'Surtido',`Bodega → Piso`, movido);
-  alert(`Surtido ${movido} a Inventario. ${restante>0?'(Faltó '+restante+')':''}`);
-}
-
-function renderSolicitudes(){
-  const tb = $('#tablaSolicitudes tbody'); tb.innerHTML='';
-  state.solicitudes.forEach(s=>{
-    const it = state.items.find(i=>i.sku===s.sku);
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${s.id}</td>
-      <td>${s.sku}</td>
-      <td>${it?.nombre||''}</td>
-      <td>${s.qty}</td>
-      <td>${s.estado}</td>
-      <td>${s.estado==='Pendiente'?'<button class="btn atender">Atender</button>':''}</td>`;
-    if(s.estado==='Pendiente'){
-      tr.querySelector('.atender').onclick = ()=> surtir(s.sku, s.qty, s.id);
-    }
-    tb.appendChild(tr);
-  });
-}
-
-function renderKardex(){
-  const tb = $('#tablaKardex tbody'); tb.innerHTML='';
-  state.kardex.forEach(k=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${k.fecha}</td><td>${k.sku}</td><td>${k.tipo}</td><td>${k.detalle}</td><td>${k.cant}</td>`;
-    tb.appendChild(tr);
-  });
-}
-
-// ======================================================
-// REPORTES Y CONFIG
-// ======================================================
-function renderResumen(){
-  const total = state.sales.reduce((a,v)=>a+v.total,0);
-  const tickets = state.sales.length;
-  const topMap = {};
-  state.sales.forEach(v=> v.items.forEach(i=> topMap[i.sku]=(topMap[i.sku]||0)+i.cant ));
-  const topSku = Object.entries(topMap).sort((a,b)=>b[1]-a[1])[0]?.[0];
-  const topName = topSku ? (state.items.find(i=>i.sku===topSku)?.nombre || topSku) : '—';
-  $('#resumenReporte').innerHTML = `
-    <span class="chip">Total: <strong>${money(total)}</strong></span>
-    <span class="chip">Tickets: <strong>${tickets}</strong></span>
-    <span class="chip">Top: <strong>${topName}</strong></span>`;
-}
-
-$('#btnIVA').onclick = ()=>{ state.config.iva = parseFloat($('#iva').value||0); persist(); };
-$('#btnGuardar').onclick = ()=>{ persist(); alert('Guardado.'); };
-$('#btnRestaurar').onclick = ()=>{ state = db.load() || state; refreshKPIs(); renderCatalog(); renderInventario(); renderSolicitudes(); renderKardex(); };
-$('#btnWipe').onclick = ()=>{ if(confirm('Borrar todos los datos locales?')){ localStorage.removeItem('farmacia-state'); location.reload(); } };
-
-// Inicial
-renderCatalog(); renderCart(); renderInventario(); renderSolicitudes(); renderKardex();
