@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Farmacia DP v1</title>
-  <link rel="stylesheet" href="style.css?v=dp-1.7"/>
+  <link rel="stylesheet" href="style.css?v=dp-1.8"/>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
@@ -52,7 +52,7 @@
     <section id="ventas" class="view">
       <!-- Barra superior (súper buscador + escáner) -->
       <div class="ventas-topbar card">
-        <input type="search" id="ventaBuscar" class="search-xl" placeholder="Buscar por nombre, SKU o etiqueta…"/>
+        <input type="search" id="ventaBuscar" class="search-xl" placeholder="Buscar por nombre, SKU o etiqueta… (Enter = SKU rápido)"/>
         <div class="scanner">
           <label for="barcodeInput">Escáner:</label>
           <input id="barcodeInput" type="text" placeholder="Apunta el lector aquí…"/>
@@ -240,7 +240,9 @@
       </div>
 
       <div class="tabview" data-tab="ticket">
-        <div class="card"><p>El logo guardado se usa en el menú y en el ticket (auto-ajuste de tamaño).</p></div>
+        <div class="card">
+          <p>El logo guardado se usa en el menú y en el ticket (auto-ajuste de tamaño). El ticket se imprime desde Ventas al **Cobrar** o desde **Historial → Ticket**.</p>
+        </div>
       </div>
 
       <div class="tabview" data-tab="resp">
@@ -309,6 +311,18 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=dp-1.7"></script>
+  <!-- Ticket -->
+  <dialog id="dlgTicket" class="modal">
+    <div class="form">
+      <h3>Ticket 58 mm</h3>
+      <div id="ticketPreview" class="ticket"></div>
+      <div class="modal-actions">
+        <button id="btnPrintTicket" class="btn primary" type="button">Imprimir</button>
+        <button id="btnCloseTicket" class="btn" type="button">Cerrar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="app.js?v=dp-1.8"></script>
 </body>
 </html>

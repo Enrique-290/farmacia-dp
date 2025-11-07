@@ -3,7 +3,7 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations?.().then(l=>l.forEach(r=>r.unregister()));
   }
-  window.__DP_BUILD='dp-1.7';
+  window.__DP_BUILD='dp-1.8';
   console.log('Farmacia DP build:',__DP_BUILD);
 })();
 
@@ -136,8 +136,8 @@ function saveProd(){
 
   let prod = (inv.editIndex>-1) ? {...state.productos[inv.editIndex]} : {batches:[]};
   Object.assign(prod, base);
-  if(inv.imgData===null && inv.editIndex>-1){ /* no cambio => mantener */ }
-  else if(inv.imgData===undefined){ prod.img=''; } // Quitar imagen
+  if(inv.imgData===null && inv.editIndex>-1){ /* mantener */ }
+  else if(inv.imgData===undefined){ prod.img=''; } // quitar
   else { prod.img=inv.imgData||''; }
 
   const lote0=$('#fLote0').value.trim(), cad0=$('#fCad0').value||'', pzs0=+($('#fPzs0').value||0);
@@ -175,6 +175,7 @@ function importCSV(file){
 
 /* ===== Ventas ===== */
 const cart={items:[],extras:[],receta:null};
+
 function renderCatalogo(){
   const wrap=$('#catalogoProductos'); const txt=($('#ventaBuscar').value||'').toLowerCase();
   wrap.innerHTML='';
@@ -186,12 +187,14 @@ function renderCatalogo(){
     .forEach(p=>{
       const card=document.createElement('div'); card.className='prod-card';
       const bg = p.img ? `background-image:url('${p.img}');background-size:cover;background-position:center;` : '';
+      // "Servicio" siempre disponible (stock "—")
+      const stockTxt = p.etiqueta==='Servicio' ? 'Stock: —' : 'Stock: '+getStock(p);
       card.innerHTML=`
         <div class="prod-img" style="${bg}"></div>
         <div class="prod-info">
           <div class="prod-name">${p.name}</div>
           <div class="prod-sku">SKU: ${p.sku}</div>
-          <div class="prod-meta"><span>${money(p.price)}</span><span>${p.etiqueta==='Servicio'?'Stock: —':'Stock: '+getStock(p)}</span></div>
+          <div class="prod-meta"><span>${money(p.price)}</span><span>${stockTxt}</span></div>
           <button class="btn add-to-cart" data-sku="${p.sku}" data-name="${p.name}" data-price="${p.price}">Agregar</button>
         </div>`;
       wrap.appendChild(card);
@@ -202,7 +205,15 @@ function renderCart(){
   const list=$('#carritoLista'); list.innerHTML='';
   let total=0;
   if(cart.items.length===0) list.innerHTML='<li>(Vacío)</li>';
-  cart.items.forEach(p=>{ total+=p.price*p.qty; const li=document.createElement('li'); li.innerHTML=`${p.name} — ${money(p.price)} x ${p.qty}`; const del=document.createElement('button'); del.className='btn'; del.textContent='✕'; del.onclick=()=>{removeItem(p.sku)}; li.appendChild(del); list.appendChild(li); });
+  cart.items.forEach(p=>{
+    total+=p.price*p.qty;
+    const li=document.createElement('li');
+    li.innerHTML=`${p.name} — ${money(p.price)} x ${p.qty}`;
+    const del=document.createElement('button'); del.className='btn'; del.textContent='✕';
+    del.onclick=()=>{removeItem(p.sku)};
+    li.appendChild(del);
+    list.appendChild(li);
+  });
   const exList=$('#extrasLista'); exList.innerHTML='';
   cart.extras.forEach((e,i)=>{ total+=e.amount; const li=document.createElement('li'); li.innerHTML=`${e.desc} — ${money(e.amount)}`; const del=document.createElement('button'); del.className='btn'; del.textContent='✕'; del.onclick=()=>{cart.extras.splice(i,1); renderCart();}; li.appendChild(del); exList.appendChild(li); });
   $('#total').textContent=money(total);
@@ -211,12 +222,86 @@ function addItem(sku,name,price){ const f=cart.items.find(p=>p.sku===sku); if(f)
 function removeItem(sku){ const i=cart.items.findIndex(p=>p.sku===sku); if(i>-1){ cart.items.splice(i,1); renderCart(); } }
 function clearCart(){ cart.items.length=0; cart.extras.length=0; cart.receta=null; $('#recetaFile').value=''; $('#recetaPreview').style.display='none'; renderCart(); }
 
+// SKU rápido desde buscador superior (Enter = agregar si coincide exacto)
+function setupSkuRapido(){
+  const search=$('#ventaBuscar');
+  search.addEventListener('keydown',e=>{
+    if(e.key!=='Enter') return;
+    const v=(search.value||'').trim().toUpperCase();
+    if(!v) return;
+    const p=state.productos.find(x=>x.sku===v);
+    if(p){ addItem(p.sku,p.name,p.price); search.select(); e.preventDefault(); }
+  });
+}
+
+/* ===== Ticket 58mm ===== */
+function buildTicketHTML(v){
+  const biz=state.negocio||{};
+  const logo = biz.logo ? `<img src="${biz.logo}" alt="logo"/>` : '';
+  let itemsHTML='';
+  v.items.forEach(i=>{
+    itemsHTML += `
+      <div>${i.name}</div>
+      <div class="row"><span class="t-small">${i.qty} x ${money(i.price)}</span><span class="t-small t-bold">${money(i.qty*i.price)}</span></div>
+    `;
+  });
+  if(v.extras?.length){
+    itemsHTML += `<hr/><div class="t-bold">Extras</div>`;
+    v.extras.forEach(e=>{
+      itemsHTML += `<div class="row"><span class="t-small">${e.desc}</span><span class="t-small t-bold">${money(e.amount)}</span></div>`;
+    });
+  }
+  return `
+  <div class="ticket">
+    ${logo}
+    <div class="t-center t-bold">${biz.nombre||'Farmacia'}</div>
+    <div class="t-center t-small">${biz.dir||''}</div>
+    <div class="t-center t-small">${biz.tel||''}${biz.mail?(' · '+biz.mail):''}</div>
+    <hr/>
+    <div>Folio: ${v.folio}</div>
+    <div class="t-small">${new Date(v.fecha).toLocaleString('es-MX')}</div>
+    <hr/>
+    ${itemsHTML}
+    <hr/>
+    <div class="row"><span class="t-bold">Total</span><span class="t-bold">${money(v.total)}</span></div>
+    <div class="t-small">Pago: ${v.pago||'EFE'}</div>
+    <hr/>
+    <div class="t-center t-small">¡Gracias por su compra!</div>
+  </div>`;
+}
+
+function openTicketDialog(v){
+  $('#ticketPreview').innerHTML = buildTicketHTML(v);
+  $('#dlgTicket').showModal();
+}
+function printCurrentTicket(){
+  const html = `
+  <html><head>
+    <meta charset="utf-8"/>
+    <title>Ticket</title>
+    <style>
+      @page{ size:58mm auto; margin:0 }
+      body{ margin:0; }
+      .ticket{width:58mm; background:#fff; color:#000; padding:8px; font:12px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace}
+      .t-center{text-align:center} .t-small{font-size:11px} .t-bold{font-weight:700}
+      hr{border:0;border-top:1px dashed #999;margin:6px 0}
+      .row{display:flex;justify-content:space-between;gap:8px}
+      img{max-width:48mm;max-height:24mm;object-fit:contain;margin:0 auto 6px auto;display:block}
+    </style>
+  </head><body>${$('#ticketPreview').innerHTML}</body></html>`;
+  const w=window.open('','_blank','width=400,height=600');
+  w.document.open(); w.document.write(html); w.document.close();
+  w.focus(); w.print();
+}
+
+/* ===== Cobro / KPIs ===== */
 function cobrar(){
   if(cart.items.length===0 && cart.extras.length===0) return alert('Carrito vacío');
+
   // Afectar stock (no servicios)
   cart.items.forEach(item=>{
     const p=state.productos.find(x=>x.sku===item.sku);
-    if(!p || p.etiqueta==='Servicio') return;
+    if(!p || p.etiqueta==='Servicio') return; // consulta y servicios no descuentan lotes
     let qty=item.qty;
     (p.batches||[]).sort((a,b)=>new Date(a.cad)-new Date(b.cad)); // FEFO
     for(const b of p.batches){
@@ -224,12 +309,20 @@ function cobrar(){
     }
     p.batches=p.batches.filter(b=>b.piezas>0);
   });
+
   const folio='F-'+uid();
   const total=parseFloat($('#total').textContent.replace(/[^0-9.]/g,''))||0;
-  const venta={folio,fecha:new Date().toISOString(),cliente:'Público',items:structuredClone(cart.items),extras:structuredClone(cart.extras),total,pago:'EFE',receta:cart.receta?cart.receta.name||cart.receta.fileName:null,estado:'Activa'};
+  const venta={
+    folio, fecha:new Date().toISOString(), cliente:'Público',
+    items:structuredClone(cart.items), extras:structuredClone(cart.extras),
+    total, pago:'EFE', receta:cart.receta?cart.receta.name||cart.receta.fileName:null, estado:'Activa'
+  };
   state.ventas.unshift(venta);
+
   const cg=state.clientes.find(c=>c.nombre==='Público General'); if(cg){ cg.compras++; cg.ultima=todayISO(); }
-  saveState(); alert(`Cobro registrado — Folio ${folio}\nTotal: ${money(total)}`);
+
+  saveState();
+  openTicketDialog(venta);  // abrir ticket
   clearCart(); renderInvTable(); renderHistorial(); renderReportes('d'); refreshKPIs();
 }
 
@@ -258,7 +351,7 @@ function renderHistorial(){
         <td>${v.receta? '📎' : '—'}</td>
         <td>${v.estado}</td>
         <td>
-          <button class="btn btn-sm" data-act="ver" data-f="${v.folio}">Ver</button>
+          <button class="btn btn-sm" data-act="ticket" data-f="${v.folio}">Ticket</button>
           ${v.estado==='Activa'?`<button class="btn btn-sm" data-act="anular" data-f="${v.folio}">Anular</button>`:''}
         </td>`;
       tbody.appendChild(tr);
@@ -316,7 +409,7 @@ function importClientesCSV(file){
   }; r.readAsText(file);
 }
 
-/* ===== Bodega ===== */
+/* ===== Bodega (placeholder funcional) ===== */
 function renderSolicitudes(){
   const tbody=$('#tblSolicitudes tbody'); tbody.innerHTML='';
   state.solicitudes.forEach(s=>{
@@ -406,9 +499,13 @@ function initInventarioUI(){
 }
 function initVentasUI(){
   $('#ventaBuscar').oninput=renderCatalogo;
+  setupSkuRapido(); // ENTER = SKU rápido
+
+  // Escáner dedicado
   const scan=$('#barcodeInput'); const focusScan=()=>{ scan.focus(); scan.select?.(); };
   $('#reactivarScanner').onclick=focusScan;
   scan.onkeydown=e=>{ if(e.key!=='Enter') return; const code=(scan.value||'').trim().toUpperCase(); scan.value=''; const p=state.productos.find(x=>x.sku===code); if(p) addItem(p.sku,p.name,p.price); else alert(`SKU no encontrado: ${code}`); };
+
   $('#btnAgregarExtra').onclick=()=>{ const d=$('#extraDesc').value.trim(); const m=parseFloat($('#extraMonto').value); if(!d||isNaN(m)) return; cart.extras.push({desc:d,amount:+m}); $('#extraDesc').value=''; $('#extraMonto').value=''; renderCart(); };
   $('#recetaFile').onchange=e=>{ const f=e.target.files?.[0]; const prev=$('#recetaPreview'); if(!f){ cart.receta=null; prev.style.display='none'; return; } cart.receta=f; if(f.type.startsWith('image/')){ const fr=new FileReader(); fr.onload=()=>{ prev.src=fr.result; prev.style.display='block'; }; fr.readAsDataURL(f); } else prev.style.display='none'; };
   $('#btnVaciar').onclick=clearCart;
@@ -431,7 +528,7 @@ function initHistorialUI(){
   $('#tablaHistorial').addEventListener('click',e=>{
     const btn=e.target.closest('button[data-act]'); if(!btn) return;
     const act=btn.dataset.act, folio=btn.dataset.f;
-    if(act==='ver'){ alert(`Folio ${folio}`); }
+    if(act==='ticket'){ const v=state.ventas.find(x=>x.folio===folio); if(v) openTicketDialog(v); }
     if(act==='anular'){ if(confirm('¿Anular venta?')) anularVenta(folio); }
   });
 }
@@ -455,4 +552,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   initReportesUI(); renderReportes('d');
   initClientesUI(); renderClientes();
   initConfig();
+
+  // Ticket dialog buttons
+  $('#btnPrintTicket').onclick=printCurrentTicket;
+  $('#btnCloseTicket').onclick=()=>$('#dlgTicket').close();
 });
