@@ -8,6 +8,7 @@ const LS = {
   get(k, def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch{ return def; } },
   set(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
 };
+const todayISO = ()=> new Date().toISOString();
 
 // ===== Estado =====
 let productos = LS.get("fdp_productos", null);
@@ -19,8 +20,10 @@ if(!productos){
   ];
   LS.set("fdp_productos", productos);
 }
-let ventas = LS.get("fdp_ventas", []);
-let cart = { items:[], extras:[], receta:null, pago:{metodo:"EFE", ref:""} };
+let ventas   = LS.get("fdp_ventas",   []);
+let bodReqs  = LS.get("fdp_bodega_reqs", []);     // {folio, fecha, sku, nombre, solicitadas, recibidas, solicitante, nota, estado}
+let bodMovs  = LS.get("fdp_bodega_movs", []);     // {fecha, sku, nombre, pzas, lote, cad, solicitante, receptor, folioReq, nota}
+let cart     = { items:[], extras:[], receta:null, pago:{metodo:"EFE", ref:""} };
 
 // ===== Navegación =====
 function showView(view){
@@ -31,6 +34,7 @@ function showView(view){
   if(view==="ventas"){ renderCatalogo($('#topSearch')?.value||""); renderCarrito(); }
   if(view==="dashboard"){ updateDashboard(); }
   if(view==="inventario"){ renderInventario(); }
+  if(view==="bodega"){ renderBodega(); }
 }
 function bindNav(){
   $$('.nav [data-go]').forEach(a=>a.addEventListener('click', e=>{
@@ -99,10 +103,14 @@ function renderCatalogo(filtro=""){
         <div class="price">${money(p.precio)}</div>
         <div class="sku" style="margin-left:auto;">Stock: ${p.stock ?? '—'}</div>
       </div>
-      <button class="btn" data-add="${p.sku}">Agregar</button>
+      <div class="row">
+        <button class="btn" data-add="${p.sku}">Agregar</button>
+        <button class="btn ghost" data-req="${p.sku}" title="Solicitar a bodega">Solicitar</button>
+      </div>
     </div>
   `).join('');
   $$('[data-add]').forEach(b=> b.onclick = ()=> addToCart(b.dataset.add,1));
+  $$('[data-req]').forEach(b=> b.onclick = ()=> openReqModal(b.dataset.req));
 }
 function addToCart(sku, cant){
   const p = productos.find(x=>x.sku===sku); if(!p) return;
@@ -169,7 +177,6 @@ function bindVentas(){
     cart.items.forEach(i=>{
       const p = productos.find(x=>x.sku===i.sku);
       if(p && Number.isFinite(p.stock)) p.stock = Math.max(0, p.stock - i.cant);
-      // opcional: descontar del primer lote (no fifo completo en esta etapa)
       if(p && p.lotes && p.lotes.length){
         let qty = i.cant;
         for(const lote of p.lotes){
@@ -185,7 +192,7 @@ function bindVentas(){
 
     const venta = {
       folio: "F-" + Math.random().toString(36).slice(2,8).toUpperCase(),
-      fecha: new Date().toISOString(),
+      fecha: todayISO(),
       items: JSON.parse(JSON.stringify(cart.items)),
       extras: JSON.parse(JSON.stringify(cart.extras)),
       pago: {...cart.pago},
@@ -200,7 +207,7 @@ function bindVentas(){
   });
 }
 
-// ===== Inventario (CRUD + imagen local + lotes) =====
+// ===== Inventario (CRUD básico usado antes) =====
 function calcCadProx(p){
   const cads = (p.lotes||[]).filter(l=>l.piezas>0 && l.cad).map(l=>l.cad);
   if(!cads.length) return null;
@@ -231,6 +238,7 @@ function renderInventario(){
       <td class="row">
         <button class="btn ghost" data-edit="${p.sku}">Editar</button>
         <button class="btn ghost" data-addstock="${p.sku}">+Stock</button>
+        <button class="btn ghost" data-req="${p.sku}">Solicitar</button>
         <button class="btn danger ghost" data-del="${p.sku}">Eliminar</button>
       </td>
     </tr>
@@ -238,6 +246,7 @@ function renderInventario(){
 
   $$('[data-addstock]').forEach(b=> b.onclick = ()=> openStockModal(b.dataset.addstock));
   $$('[data-edit]').forEach(b=> b.onclick     = ()=> openProdModal('edit', b.dataset.edit));
+  $$('[data-req]').forEach(b=> b.onclick      = ()=> openReqModal(b.dataset.req));
   $$('[data-del]').forEach(b=> b.onclick      = ()=>{
     const sku = b.dataset.del;
     const p = productos.find(x=>x.sku===sku);
@@ -254,15 +263,13 @@ function bindInventario(){
   $('#btnNuevoProd')?.addEventListener('click', ()=> openProdModal('new'));
 }
 
-// ---- Modal Producto
+// ---- Modal Producto (igual etapa anterior)
 let prodEditingSku = null;
 function openProdModal(mode, sku=null){
   prodEditingSku = null;
-  const modal = $('#modalProd');
-  const title = $('#prodModalTitle');
   const p = mode==='edit' ? productos.find(x=>x.sku===sku) : null;
 
-  title.textContent = (mode==='edit') ? 'Editar producto' : 'Nuevo producto';
+  $('#prodModalTitle').textContent = (mode==='edit') ? 'Editar producto' : 'Nuevo producto';
   $('#fSku').value     = p?.sku     || '';
   $('#fNombre').value  = p?.nombre  || '';
   $('#fEtiqueta').value= p?.etiqueta|| 'Generico';
@@ -275,12 +282,16 @@ function openProdModal(mode, sku=null){
   prodEditingSku = (mode==='edit') ? (p?.sku||null) : null;
   openModal('modalProd');
 }
-function openModal(id){ const m = $('#'+id); if(!m) return; m.classList.remove('hidden'); }
-function closeModal(id){ const m = $('#'+id); if(!m) return; m.classList.add('hidden'); }
+function openModal(id){ $('#'+id)?.classList.remove('hidden'); }
+function closeModal(id){ $('#'+id)?.classList.add('hidden'); }
 $$('[data-close="modalProd"]').forEach(el=> el.onclick = ()=> closeModal('modalProd'));
 $$('[data-close="modalStock"]').forEach(el=> el.onclick = ()=> closeModal('modalStock'));
+$$('[data-close="modalReq"]').forEach(el=> el.onclick = ()=> closeModal('modalReq'));
+$$('[data-close="modalRec"]').forEach(el=> el.onclick = ()=> closeModal('modalRec'));
 $('.modal__backdrop[data-close="modalProd"]')?.addEventListener('click', ()=> closeModal('modalProd'));
 $('.modal__backdrop[data-close="modalStock"]')?.addEventListener('click', ()=> closeModal('modalStock'));
+$('.modal__backdrop[data-close="modalReq"]')?.addEventListener('click', ()=> closeModal('modalReq'));
+$('.modal__backdrop[data-close="modalRec"]')?.addEventListener('click', ()=> closeModal('modalRec'));
 
 // file -> dataURL
 $('#fImg')?.addEventListener('change', e=>{
@@ -323,11 +334,10 @@ $('#btnProdGuardar')?.addEventListener('click', ()=>{
     LS.set("fdp_productos", productos);
   }
   closeModal('modalProd'); renderInventario(); renderCatalogo($('#topSearch')?.value||''); updateDashboard();
-  // limpiar preview guardada
   if($('#fPreview')) delete $('#fPreview').dataset.dataurl;
 });
 
-// ---- Modal +Stock (lote)
+// +Stock directo
 let stockSku = null;
 function openStockModal(sku){
   stockSku = sku;
@@ -340,18 +350,197 @@ $('#btnAddLote')?.addEventListener('click', ()=>{
   const lote = $('#sLote').value.trim();
   const cad  = $('#sCad').value || null;
   const pzas = parseInt($('#sPzas').value||'0')||0;
-  if(!lote || pzas<=0){ alert('Completa Lote y Piezas'); return; }
-  p.lotes = p.lotes||[];
-  p.lotes.push({lote, cad, piezas:pzas});
+  if(!lote || !cad || pzas<=0){ alert('Lote y Caducidad obligatorios, piezas > 0'); return; }
+  p.lotes = p.lotes||[]; p.lotes.push({lote, cad, piezas:pzas});
   p.stock = (p.stock||0) + pzas;
   p.cadProx = calcCadProx(p);
   LS.set("fdp_productos", productos);
   closeModal('modalStock'); renderInventario(); renderCatalogo($('#topSearch')?.value||''); updateDashboard();
 });
 
-// ===== Inits =====
+// ===== Bodega =====
+
+// — Solicitar desde inventario o catálogo
+let reqSku = null;
+function openReqModal(sku){
+  const p = productos.find(x=>x.sku===sku); if(!p) return;
+  reqSku = sku;
+  $('#rqSku').value = p.sku; $('#rqNombre').value = p.nombre;
+  $('#rqPzas').value = 1; $('#rqUser').value = ''; $('#rqNota').value = '';
+  openModal('modalReq');
+}
+$('#btnReqGuardar')?.addEventListener('click', ()=>{
+  const p = productos.find(x=>x.sku===reqSku); if(!p) return;
+  const piezas = parseInt($('#rqPzas').value||'0')||0;
+  const solicitante = ($('#rqUser').value||'').trim() || 'Recepción';
+  const nota = ($('#rqNota').value||'').trim() || null;
+  if(piezas<=0){ alert('Piezas debe ser > 0'); return; }
+  const folio = 'RQ-' + Math.random().toString(36).slice(2,7).toUpperCase();
+  const req = {folio, fecha:todayISO(), sku:p.sku, nombre:p.nombre, solicitadas:piezas, recibidas:0, solicitante, nota, estado:'Solicitado'};
+  bodReqs.unshift(req); LS.set('fdp_bodega_reqs', bodReqs);
+  closeModal('modalReq'); renderBodega();
+  alert(`Solicitud creada: ${folio}`);
+});
+
+// — Bodega: tabs
+function bindBodegaTabs(){
+  $$('.tabs .tab').forEach(t=>{
+    t.onclick = ()=>{
+      $$('.tabs .tab').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      const show = t.dataset.tab;
+      $$('.tabpanel').forEach(p=>p.classList.add('hidden'));
+      $(`.tabpanel[data-panel="${show}"]`)?.classList.remove('hidden');
+    };
+  });
+}
+
+// — Render solicitudes e historial
+function renderBodega(){
+  renderBodSolicitudes();
+  renderBodMovs();
+}
+function renderBodSolicitudes(){
+  const q = ($('#bodSearch')?.value||'').toLowerCase();
+  const est = $('#bodEstado')?.value||'';
+  const tbody = $('#bodTable tbody'); if(!tbody) return;
+
+  const list = bodReqs.filter(r=>{
+    const hit = (r.sku||'').toLowerCase().includes(q) || (r.nombre||'').toLowerCase().includes(q) || (r.folio||'').toLowerCase().includes(q);
+    const eok = !est || r.estado===est;
+    return hit && eok;
+  });
+
+  tbody.innerHTML = list.map(r=>{
+    const pend = r.solicitadas - r.recibidas;
+    const canRecibir = pend>0 && r.estado!=='Cancelado';
+    return `
+      <tr>
+        <td>${r.folio}</td>
+        <td>${new Date(r.fecha).toLocaleString('es-MX')}</td>
+        <td>${r.sku}</td>
+        <td>${r.nombre}</td>
+        <td>${r.solicitadas}</td>
+        <td>${r.recibidas}</td>
+        <td>${pend}</td>
+        <td>${r.solicitante||''}</td>
+        <td>${r.estado}</td>
+        <td class="row">
+          ${canRecibir? `<button class="btn" data-rec="${r.folio}">Recibir</button>`:''}
+          ${r.estado==='Solicitado' || r.estado==='Parcial' ? `<button class="btn danger ghost" data-cancel="${r.folio}">Cancelar</button>`:''}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  $$('[data-rec]').forEach(b=> b.onclick = ()=> openRecModal(b.dataset.rec));
+  $$('[data-cancel]').forEach(b=> b.onclick = ()=>{
+    const folio = b.dataset.cancel;
+    const r = bodReqs.find(x=>x.folio===folio); if(!r) return;
+    if(!confirm(`Cancelar solicitud ${folio}?`)) return;
+    r.estado = 'Cancelado';
+    LS.set('fdp_bodega_reqs', bodReqs);
+    renderBodSolicitudes();
+  });
+}
+function renderBodMovs(){
+  const q = ($('#movSearch')?.value||'').toLowerCase();
+  const tbody = $('#movTable tbody'); if(!tbody) return;
+
+  const list = bodMovs.filter(m=>{
+    return (m.sku||'').toLowerCase().includes(q) ||
+           (m.nombre||'').toLowerCase().includes(q) ||
+           (m.lote||'').toLowerCase().includes(q) ||
+           (m.folioReq||'').toLowerCase().includes(q);
+  });
+
+  tbody.innerHTML = list.map(m=>`
+    <tr>
+      <td>${new Date(m.fecha).toLocaleString('es-MX')}</td>
+      <td>${m.sku}</td>
+      <td>${m.nombre}</td>
+      <td>${m.pzas}</td>
+      <td>${m.lote||''}</td>
+      <td>${m.cad||''}</td>
+      <td>${m.solicitante||''}</td>
+      <td>${m.receptor||''}</td>
+      <td>${m.folioReq||''}</td>
+    </tr>
+  `).join('');
+}
+
+// — Recepción
+let recFolio = null;
+function openRecModal(folio){
+  const r = bodReqs.find(x=>x.folio===folio); if(!r) return;
+  recFolio = folio;
+  const pend = r.solicitadas - r.recibidas;
+  $('#rcFolio').value  = r.folio;
+  $('#rcSku').value    = r.sku;
+  $('#rcNombre').value = r.nombre;
+  $('#rcPend').value   = pend;
+  $('#rcLote').value   = '';
+  $('#rcCad').value    = '';
+  $('#rcPzas').value   = pend;
+  $('#rcUser').value   = '';
+  $('#rcNota').value   = '';
+  openModal('modalRec');
+}
+$('#btnRecibir')?.addEventListener('click', ()=>{
+  const r = bodReqs.find(x=>x.folio===recFolio); if(!r) return;
+  const lote = $('#rcLote').value.trim();
+  const cad  = $('#rcCad').value;
+  const pzas = parseInt($('#rcPzas').value||'0')||0;
+  const receptor = ($('#rcUser').value||'').trim() || 'Bodega';
+  const nota = ($('#rcNota').value||'').trim() || null;
+  const pend = r.solicitadas - r.recibidas;
+
+  if(!lote || !cad || pzas<=0){ alert('Lote y Caducidad obligatorios, piezas > 0'); return; }
+  if(pzas > pend){ alert(`No puedes recibir más de lo pendiente (${pend}).`); return; }
+
+  const prod = productos.find(x=>x.sku===r.sku);
+  if(!prod){ alert('Producto no encontrado'); return; }
+  if(prod.etiqueta==='Servicio'){ alert('El artículo es Servicio (sin stock).'); return; }
+
+  // Actualiza inventario
+  prod.lotes = prod.lotes||[];
+  prod.lotes.push({lote, cad, piezas:pzas});
+  prod.stock = (prod.stock||0) + pzas;
+  prod.cadProx = calcCadProx(prod);
+  LS.set('fdp_productos', productos);
+
+  // Actualiza solicitud
+  r.recibidas += pzas;
+  r.estado = (r.recibidas >= r.solicitadas) ? 'Recibido' : 'Parcial';
+  LS.set('fdp_bodega_reqs', bodReqs);
+
+  // Movimiento
+  const mov = {fecha: todayISO(), sku:r.sku, nombre:r.nombre, pzas, lote, cad, solicitante:r.solicitante, receptor, folioReq:r.folio, nota};
+  bodMovs.unshift(mov); LS.set('fdp_bodega_movs', bodMovs);
+
+  closeModal('modalRec');
+  renderBodega(); renderInventario(); updateDashboard();
+  alert(`Recibidas ${pzas} pzas de ${r.nombre} — estado: ${r.estado}`);
+});
+
+// ===== TABS y Filtros bodega =====
+$('#bodSearch')?.addEventListener('input', renderBodSolicitudes);
+$('#bodEstado')?.addEventListener('change', renderBodSolicitudes);
+$('#movSearch')?.addEventListener('input', renderBodMovs);
+
+// ===== Helpers modales =====
+function bindModalBackdrops(){
+  ['modalProd','modalStock','modalReq','modalRec'].forEach(id=>{
+    $(`#${id} .modal__backdrop`)?.addEventListener('click', ()=> closeModal(id));
+  });
+}
+
+// ===== Init =====
 bindNav();
 bindSearch();
 bindVentas();
 bindInventario();
+bindBodegaTabs();
+bindModalBackdrops();
 updateDashboard();
+renderBodega();

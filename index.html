@@ -119,7 +119,56 @@
       </table>
     </section>
 
-    <section class="view hidden" data-view="bodega"><h1>Bodega (próximo)</h1></section>
+    <!-- BODEGA -->
+    <section class="view hidden" data-view="bodega">
+      <h1>Bodega</h1>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="sol">Solicitudes</button>
+        <button class="tab" data-tab="mov">Historial</button>
+      </div>
+
+      <!-- Solicitudes -->
+      <div class="tabpanel" data-panel="sol">
+        <div class="row">
+          <input id="bodSearch" class="input" placeholder="Buscar por SKU, nombre o folio…" />
+          <select id="bodEstado" class="input">
+            <option value="">Estado (todos)</option>
+            <option value="Solicitado">Solicitado</option>
+            <option value="Parcial">Parcial</option>
+            <option value="Recibido">Recibido</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+        <table class="table" id="bodTable">
+          <thead>
+            <tr>
+              <th>Folio</th><th>Fecha</th><th>SKU</th><th>Producto</th>
+              <th>Solicitadas</th><th>Recibidas</th><th>Pendientes</th>
+              <th>Solicitante</th><th>Estado</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Historial movimientos -->
+      <div class="tabpanel hidden" data-panel="mov">
+        <div class="row">
+          <input id="movSearch" class="input" placeholder="Buscar por SKU, lote, folio solicitud…" />
+        </div>
+        <table class="table" id="movTable">
+          <thead>
+            <tr>
+              <th>Fecha</th><th>SKU</th><th>Producto</th><th>+Pzas</th>
+              <th>Lote</th><th>Caducidad</th><th>Solicitante</th><th>Receptor</th><th>Folio Sol.</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="view hidden" data-view="clientes"><h1>Clientes (próximo)</h1></section>
     <section class="view hidden" data-view="historial"><h1>Historial (próximo)</h1></section>
     <section class="view hidden" data-view="reportes"><h1>Reportes (próximo)</h1></section>
@@ -133,14 +182,8 @@
       <h2 id="prodModalTitle">Producto</h2>
       <div class="form">
         <div class="row">
-          <div class="col">
-            <label>SKU</label>
-            <input id="fSku" class="input" />
-          </div>
-          <div class="col">
-            <label>Nombre</label>
-            <input id="fNombre" class="input" />
-          </div>
+          <div class="col"><label>SKU</label><input id="fSku" class="input" /></div>
+          <div class="col"><label>Nombre</label><input id="fNombre" class="input" /></div>
         </div>
         <div class="row">
           <div class="col">
@@ -152,29 +195,15 @@
               <option value="Servicio">Servicio</option>
             </select>
           </div>
-          <div class="col">
-            <label>Precio (venta)</label>
-            <input id="fPrecio" class="input" type="number" min="0" step="0.01"/>
-          </div>
+          <div class="col"><label>Precio (venta)</label><input id="fPrecio" class="input" type="number" min="0" step="0.01"/></div>
         </div>
         <div class="row">
-          <div class="col">
-            <label>Stock inicial</label>
-            <input id="fStock" class="input" type="number" min="0" step="1"/>
-          </div>
-          <div class="col">
-            <label>Stock mínimo</label>
-            <input id="fMin" class="input" type="number" min="0" step="1" value="0"/>
-          </div>
+          <div class="col"><label>Stock inicial</label><input id="fStock" class="input" type="number" min="0" step="1"/></div>
+          <div class="col"><label>Stock mínimo</label><input id="fMin" class="input" type="number" min="0" step="1" value="0"/></div>
         </div>
         <div class="row">
-          <div class="col">
-            <label>Imagen (desde dispositivo)</label>
-            <input id="fImg" type="file" accept="image/*"/>
-          </div>
-          <div class="col">
-            <div class="preview" id="fPreview">Sin imagen</div>
-          </div>
+          <div class="col"><label>Imagen (desde dispositivo)</label><input id="fImg" type="file" accept="image/*"/></div>
+          <div class="col"><div class="preview" id="fPreview">Sin imagen</div></div>
         </div>
       </div>
       <div class="row end">
@@ -184,27 +213,18 @@
     </div>
   </div>
 
-  <!-- MODAL: +Stock (lote) -->
+  <!-- MODAL: +Stock (lote) directo en inventario -->
   <div class="modal hidden" id="modalStock">
     <div class="modal__backdrop" data-close="modalStock"></div>
     <div class="modal__panel">
       <h2>Agregar stock (lote)</h2>
       <div class="form">
         <div class="row">
-          <div class="col">
-            <label>Lote</label>
-            <input id="sLote" class="input"/>
-          </div>
-          <div class="col">
-            <label>Caducidad</label>
-            <input id="sCad" class="input" type="date"/>
-          </div>
+          <div class="col"><label>Lote</label><input id="sLote" class="input"/></div>
+          <div class="col"><label>Caducidad</label><input id="sCad" class="input" type="date"/></div>
         </div>
         <div class="row">
-          <div class="col">
-            <label>Piezas</label>
-            <input id="sPzas" class="input" type="number" min="1" step="1" value="1"/>
-          </div>
+          <div class="col"><label>Piezas</label><input id="sPzas" class="input" type="number" min="1" step="1" value="1"/></div>
         </div>
       </div>
       <div class="row end">
@@ -214,6 +234,64 @@
     </div>
   </div>
 
-  <script src="app.js?v=20251107a"></script>
+  <!-- MODAL: Solicitar a bodega -->
+  <div class="modal hidden" id="modalReq">
+    <div class="modal__backdrop" data-close="modalReq"></div>
+    <div class="modal__panel">
+      <h2>Solicitar a bodega</h2>
+      <div class="form">
+        <div class="row">
+          <div class="col"><label>SKU</label><input id="rqSku" class="input" readonly /></div>
+          <div class="col"><label>Producto</label><input id="rqNombre" class="input" readonly /></div>
+        </div>
+        <div class="row">
+          <div class="col"><label>Piezas solicitadas</label><input id="rqPzas" class="input" type="number" min="1" step="1" value="1"/></div>
+          <div class="col"><label>Solicitante</label><input id="rqUser" class="input" placeholder="(ej. Recepción)" /></div>
+        </div>
+        <div class="row">
+          <div class="col"><label>Nota (opcional)</label><input id="rqNota" class="input" /></div>
+        </div>
+      </div>
+      <div class="row end">
+        <button class="btn ghost" data-close="modalReq">Cancelar</button>
+        <button class="btn primary" id="btnReqGuardar">Crear solicitud</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Recepción de bodega -->
+  <div class="modal hidden" id="modalRec">
+    <div class="modal__backdrop" data-close="modalRec"></div>
+    <div class="modal__panel">
+      <h2>Recibir de bodega</h2>
+      <div class="form">
+        <div class="row">
+          <div class="col"><label>Folio solicitud</label><input id="rcFolio" class="input" readonly/></div>
+          <div class="col"><label>SKU</label><input id="rcSku" class="input" readonly/></div>
+        </div>
+        <div class="row">
+          <div class="col"><label>Producto</label><input id="rcNombre" class="input" readonly/></div>
+          <div class="col"><label>Pendiente</label><input id="rcPend" class="input" readonly/></div>
+        </div>
+        <div class="row">
+          <div class="col"><label>Lote</label><input id="rcLote" class="input"/></div>
+          <div class="col"><label>Caducidad</label><input id="rcCad" type="date" class="input"/></div>
+        </div>
+        <div class="row">
+          <div class="col"><label>Piezas a recibir</label><input id="rcPzas" class="input" type="number" min="1" step="1" value="1"/></div>
+          <div class="col"><label>Receptor</label><input id="rcUser" class="input" placeholder="(quién recibe)"/></div>
+        </div>
+        <div class="row">
+          <div class="col"><label>Nota (opcional)</label><input id="rcNota" class="input"/></div>
+        </div>
+      </div>
+      <div class="row end">
+        <button class="btn ghost" data-close="modalRec">Cancelar</button>
+        <button class="btn primary" id="btnRecibir">Recibir</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=20251107b"></script>
 </body>
 </html>
