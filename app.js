@@ -3,7 +3,7 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations?.().then(l=>l.forEach(r=>r.unregister()));
   }
-  window.__DP_BUILD='dp-1.8';
+  window.__DP_BUILD='dp-1.9';
   console.log('Farmacia DP build:',__DP_BUILD);
 })();
 
@@ -14,6 +14,7 @@ const money=n=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).
 const todayISO=()=>new Date().toISOString().slice(0,10);
 const addDays=(d,n)=>{const t=new Date(d);t.setDate(t.getDate()+n);return t;};
 const uid=()=>Math.random().toString(36).slice(2,8).toUpperCase();
+const ymd=(dt)=>new Date(dt).toISOString().slice(0,10);
 
 /* ===== Persistencia ===== */
 const DEFAULT_STATE={
@@ -23,20 +24,31 @@ const DEFAULT_STATE={
     {sku:'CONS-001',name:'Consulta médica',etiqueta:'Servicio',price:100,cost:0,stockMin:0,img:'',batches:[]}
   ],
   solicitudes:[],
+  // Inventario de bodega (base vacía, se llenará al implementar la sección completa)
+  bodegaProductos:[],
+  kardex:[], // {fecha, tipo, detalle, cant}
   ventas:[],
   clientes:[{nombre:'Público General',telefono:'',email:'',compras:0,ultima:''}],
   theme:{menu:'#0a6cff',fondo:'#f7f9fc',panel:'#ffffff',prim:'#0a6cff',text:'#111111'},
-  negocio:{nombre:'Farmacia DP',dir:'',tel:'',mail:'',logo:''}
+  negocio:{nombre:'Farmacia DP',dir:'',tel:'',mail:'',logo:''},
+  params:{ cadDias:30, iva:0.16, preciosConIVA:true, stockCritico:5 }
 };
 function loadState(){
   try{
     const raw=localStorage.getItem('dp_state');
     if(!raw) return structuredClone(DEFAULT_STATE);
     const st=JSON.parse(raw);
-    return {...structuredClone(DEFAULT_STATE),...st};
+    // Mezclar defaults por si faltan claves nuevas
+    const merged={...structuredClone(DEFAULT_STATE),...st};
+    merged.params={...DEFAULT_STATE.params, ...(st.params||{})};
+    merged.theme={...DEFAULT_STATE.theme, ...(st.theme||{})};
+    merged.negocio={...DEFAULT_STATE.negocio, ...(st.negocio||{})};
+    if(!Array.isArray(merged.kardex)) merged.kardex=[];
+    if(!Array.isArray(merged.bodegaProductos)) merged.bodegaProductos=[];
+    return merged;
   }catch(e){ return structuredClone(DEFAULT_STATE); }
 }
-function saveState(){ localStorage.setItem('dp_state',JSON.stringify(state)); applyThemePreview(); applyLogo(); refreshKPIs(); }
+function saveState(){ localStorage.setItem('dp_state',JSON.stringify(state)); applyThemePreview(); applyLogo(); refreshKPIs(); renderDashboard(); }
 
 let state=loadState();
 
@@ -49,8 +61,8 @@ function applyTheme(){
   document.documentElement.style.setProperty('--text',state.theme.text);
 }
 function applyThemePreview(){
-  $('#tMenu').value=state.theme.menu; $('#tFondo').value=state.theme.fondo;
-  $('#tPanel').value=state.theme.panel; $('#tPrim').value=state.theme.prim; $('#tText').value=state.theme.text;
+  $('#tMenu')?.value=state.theme.menu; $('#tFondo')?.value=state.theme.fondo;
+  $('#tPanel')?.value=state.theme.panel; $('#tPrim')?.value=state.theme.prim; $('#tText')?.value=state.theme.text;
   applyTheme();
 }
 function applyLogo(){
@@ -64,6 +76,7 @@ function setActiveSection(id){
   $$('.nav-link').forEach(b=>b.classList.toggle('active',b.dataset.section===id));
   $$('.view').forEach(v=>v.classList.toggle('active',v.id===id));
   $('#sectionTitle').textContent=id.charAt(0).toUpperCase()+id.slice(1);
+  if(id==='dashboard'){ renderDashboard(); }
   if(id==='ventas'){ renderCatalogo(); renderCart(); setTimeout(()=>$('#ventaBuscar')?.focus(),50); }
   if(id==='inventario'){ renderInvTable(); }
   if(id==='bodega'){ renderSolicitudes(); }
@@ -87,15 +100,16 @@ const nextCadProxima=p=>{
 
 const inv={editIndex:-1, stockSku:null, imgData:null};
 function renderInvTable(){
-  const tbody=$('#tablaInv tbody'); const txt=($('#invBuscar').value||'').toLowerCase(); const tag=$('#invEtiqueta').value||'';
+  const tbody=$('#tablaInv tbody'); if(!tbody) return;
+  const txt=($('#invBuscar').value||'').toLowerCase(); const tag=$('#invEtiqueta').value||'';
   let low=0,cad=0;
   tbody.innerHTML='';
   state.productos
     .filter(p=>(!tag||p.etiqueta===tag) && (p.name.toLowerCase().includes(txt)||p.sku.toLowerCase().includes(txt)))
     .forEach((p,i)=>{
       const stock=getStock(p), prox=nextCadProxima(p);
-      const isLow=(stock!=='—' && Number(stock)<=Number(p.stockMin)); if(isLow) low++;
-      const soon=(prox!=='—' && new Date(prox)<=addDays(new Date(),30)); if(soon) cad++;
+      const isLow=(stock!=='—' && Number(stock)<=Number(p.stockMin||state.params.stockCritico)); if(isLow) low++;
+      const soon=(prox!=='—' && new Date(prox)<=addDays(new Date(),state.params.cadDias)); if(soon) cad++;
       const tr=document.createElement('tr');
       tr.innerHTML=`
         <td><img class="img-thumb" src="${p.img||''}" onerror="this.src='';this.style.background='#eef2ff'"></td>
@@ -154,9 +168,12 @@ function saveStock(){
   const lote=$('#sLote').value.trim(), cad=$('#sCad').value||'', piezas=+$('#sPiezas').value;
   if(!lote||!piezas) return alert('Lote y piezas son obligatorios');
   const p=state.productos.find(x=>x.sku===inv.stockSku); p.batches=p.batches||[]; p.batches.push({lote,cad,piezas});
-  $('#dlgStock').close(); saveState(); renderInvTable(); renderCatalogo();
+  state.kardex.unshift({fecha:new Date().toISOString(), tipo:'Ingreso', detalle:`Lote ${lote} (${p.sku})`, cant:piezas});
+  $('#dlgStock').close(); saveState(); renderInvTable(); renderCatalogo(); renderDashboard();
 }
 function deleteProd(i){ const p=state.productos[i]; if(!confirm(`Eliminar ${p.name}?`)) return; state.productos.splice(i,1); saveState(); renderInvTable(); renderCatalogo(); }
+
+/* Import CSV inventario */
 function importCSV(file){
   const r=new FileReader();
   r.onload=()=>{
@@ -177,7 +194,8 @@ function importCSV(file){
 const cart={items:[],extras:[],receta:null};
 
 function renderCatalogo(){
-  const wrap=$('#catalogoProductos'); const txt=($('#ventaBuscar').value||'').toLowerCase();
+  const wrap=$('#catalogoProductos'); if(!wrap) return;
+  const txt=($('#ventaBuscar').value||'').toLowerCase();
   wrap.innerHTML='';
   state.productos
     .filter(p=>{
@@ -187,7 +205,6 @@ function renderCatalogo(){
     .forEach(p=>{
       const card=document.createElement('div'); card.className='prod-card';
       const bg = p.img ? `background-image:url('${p.img}');background-size:cover;background-position:center;` : '';
-      // "Servicio" siempre disponible (stock "—")
       const stockTxt = p.etiqueta==='Servicio' ? 'Stock: —' : 'Stock: '+getStock(p);
       card.innerHTML=`
         <div class="prod-img" style="${bg}"></div>
@@ -202,7 +219,8 @@ function renderCatalogo(){
   $$('.add-to-cart',wrap).forEach(b=>b.addEventListener('click',()=>addItem(b.dataset.sku,b.dataset.name,b.dataset.price)));
 }
 function renderCart(){
-  const list=$('#carritoLista'); list.innerHTML='';
+  const list=$('#carritoLista'); if(!list) return;
+  list.innerHTML='';
   let total=0;
   if(cart.items.length===0) list.innerHTML='<li>(Vacío)</li>';
   cart.items.forEach(p=>{
@@ -222,10 +240,10 @@ function addItem(sku,name,price){ const f=cart.items.find(p=>p.sku===sku); if(f)
 function removeItem(sku){ const i=cart.items.findIndex(p=>p.sku===sku); if(i>-1){ cart.items.splice(i,1); renderCart(); } }
 function clearCart(){ cart.items.length=0; cart.extras.length=0; cart.receta=null; $('#recetaFile').value=''; $('#recetaPreview').style.display='none'; renderCart(); }
 
-// SKU rápido desde buscador superior (Enter = agregar si coincide exacto)
+/* SKU rápido desde buscador superior (Enter = agregar si coincide exacto) */
 function setupSkuRapido(){
   const search=$('#ventaBuscar');
-  search.addEventListener('keydown',e=>{
+  search?.addEventListener('keydown',e=>{
     if(e.key!=='Enter') return;
     const v=(search.value||'').trim().toUpperCase();
     if(!v) return;
@@ -269,7 +287,6 @@ function buildTicketHTML(v){
     <div class="t-center t-small">¡Gracias por su compra!</div>
   </div>`;
 }
-
 function openTicketDialog(v){
   $('#ticketPreview').innerHTML = buildTicketHTML(v);
   $('#dlgTicket').showModal();
@@ -301,7 +318,7 @@ function cobrar(){
   // Afectar stock (no servicios)
   cart.items.forEach(item=>{
     const p=state.productos.find(x=>x.sku===item.sku);
-    if(!p || p.etiqueta==='Servicio') return; // consulta y servicios no descuentan lotes
+    if(!p || p.etiqueta==='Servicio') return;
     let qty=item.qty;
     (p.batches||[]).sort((a,b)=>new Date(a.cad)-new Date(b.cad)); // FEFO
     for(const b of p.batches){
@@ -318,12 +335,13 @@ function cobrar(){
     total, pago:'EFE', receta:cart.receta?cart.receta.name||cart.receta.fileName:null, estado:'Activa'
   };
   state.ventas.unshift(venta);
+  state.kardex.unshift({fecha:venta.fecha, tipo:'Venta', detalle:`${venta.folio}`, cant:venta.items.reduce((a,b)=>a+b.qty,0)});
 
   const cg=state.clientes.find(c=>c.nombre==='Público General'); if(cg){ cg.compras++; cg.ultima=todayISO(); }
 
   saveState();
-  openTicketDialog(venta);  // abrir ticket
-  clearCart(); renderInvTable(); renderHistorial(); renderReportes('d'); refreshKPIs();
+  openTicketDialog(venta);
+  clearCart(); renderInvTable(); renderHistorial(); renderReportes('d'); refreshKPIs(); renderDashboard();
 }
 
 function refreshKPIs(){
@@ -332,15 +350,40 @@ function refreshKPIs(){
   const total=ventasHoy.reduce((s,v)=>s+v.total,0);
   const prodVend=ventasHoy.reduce((s,v)=>s+v.items.reduce((a,b)=>a+b.qty,0),0);
   const tickets=ventasHoy.length;
-  $('#kpiVentasHoy').textContent=money(total);
-  $('#kpiTicketsHoy').textContent=tickets;
-  $('#kpiProdVend').textContent=prodVend;
-  $('#kpiTicketProm').textContent=money(tickets?total/tickets:0);
+
+  $('#kpiVentasHoy')?.textContent=money(total);
+  $('#kpiTicketsHoy')?.textContent=tickets;
+  $('#kpiProdVend')?.textContent=prodVend; // (solo si existe en alguna vista)
+  $('#kpiTicketProm')?.textContent=money(tickets?total/tickets:0);
+
+  // IVA hoy
+  const ivaRate=state.params?.iva??0.16;
+  const preciosConIVA=state.params?.preciosConIVA??true;
+  const baseHoy=ventasHoy.reduce((s,v)=>s+v.total,0);
+  const ivaHoy=preciosConIVA? baseHoy*(ivaRate/(1+ivaRate)) : baseHoy*ivaRate;
+  $('#kpiIvaHoy')?.textContent=money(ivaHoy);
+
+  // Ventas del mes
+  const now=new Date(); const ym=now.toISOString().slice(0,7);
+  const ventasMes=state.ventas.filter(v=>v.fecha.slice(0,7)===ym).reduce((s,v)=>s+v.total,0);
+  $('#kpiVentasMes')?.textContent=money(ventasMes);
+
+  // Top producto/servicio hoy
+  const map=new Map(), mapServ=new Map();
+  ventasHoy.forEach(v=>v.items.forEach(i=>{
+    const p=state.productos.find(x=>x.sku===i.sku);
+    if(!p || p.etiqueta==='Servicio') mapServ.set(i.name,(mapServ.get(i.name)||0)+i.qty);
+    else map.set(i.name,(map.get(i.name)||0)+i.qty);
+  }));
+  const topP=[...map.entries()].sort((a,b)=>b[1]-a[1])[0];
+  const topS=[...mapServ.entries()].sort((a,b)=>b[1]-a[1])[0];
+  const topTxt=(topP?`Prod: ${topP[0]} (${topP[1]})`:'Prod: —')+' | '+(topS?`Serv: ${topS[0]} (${topS[1]})`:'Serv: —');
+  $('#kpiTopHoy')?.textContent=topTxt;
 }
 
 /* ===== Historial ===== */
 function renderHistorial(){
-  const tbody=$('#tablaHistorial tbody'); tbody.innerHTML='';
+  const tbody=$('#tablaHistorial tbody'); if(!tbody) return; tbody.innerHTML='';
   const d=$('#fhDesde').value||'0000-01-01', h=$('#fhHasta').value||'9999-12-31';
   state.ventas.filter(v=>v.fecha.slice(0,10)>=d && v.fecha.slice(0,10)<=h)
     .forEach(v=>{
@@ -364,7 +407,9 @@ function anularVenta(folio){
     if(!p||p.etiqueta==='Servicio') return;
     p.batches=p.batches||[]; p.batches.push({lote:'DEV-'+folio,cad:'',piezas:item.qty});
   });
-  v.estado='Anulada'; saveState(); renderInvTable(); renderHistorial(); renderReportes('d'); refreshKPIs();
+  v.estado='Anulada';
+  state.kardex.unshift({fecha:new Date().toISOString(), tipo:'Anulación', detalle:`${folio}`, cant:v.items.reduce((a,b)=>a+b.qty,0)});
+  saveState(); renderInvTable(); renderHistorial(); renderReportes('d'); refreshKPIs(); renderDashboard();
 }
 
 /* ===== Reportes ===== */
@@ -388,7 +433,7 @@ function renderReportes(tab){
 /* ===== Clientes ===== */
 function renderClientes(){
   const txt=($('#buscarCliente').value||'').toLowerCase();
-  const tbody=$('#tablaClientes tbody'); tbody.innerHTML='';
+  const tbody=$('#tablaClientes tbody'); if(!tbody) return; tbody.innerHTML='';
   state.clientes.filter(c=>c.nombre.toLowerCase().includes(txt))
     .forEach(c=>{
       const tr=document.createElement('tr');
@@ -409,9 +454,9 @@ function importClientesCSV(file){
   }; r.readAsText(file);
 }
 
-/* ===== Bodega (placeholder funcional) ===== */
+/* ===== Bodega (placeholder funcional existente) ===== */
 function renderSolicitudes(){
-  const tbody=$('#tblSolicitudes tbody'); tbody.innerHTML='';
+  const tbody=$('#tblSolicitudes tbody'); if(!tbody) return; tbody.innerHTML='';
   state.solicitudes.forEach(s=>{
     const tr=document.createElement('tr'); tr.innerHTML=`<td>${s.folio}</td><td>${s.sku}</td><td>${s.piezas}</td><td>${s.estado}</td>`; tbody.appendChild(tr);
   });
@@ -424,13 +469,14 @@ function openRecepcion(sol){
     <button id="recAceptar" class="btn primary">Aceptar</button>
     <button id="recParcial" class="btn">Parcial</button>
     <button id="recRech" class="btn">Rechazar</button>`;
-  $('#recAceptar').onclick=()=>{ moverAInventario(sol,sol.piezas); sol.estado='Aceptada'; saveState(); renderSolicitudes(); renderInvTable(); };
-  $('#recParcial').onclick=()=>{ const n=+prompt('Piezas a recibir',sol.piezas)||0; if(n<=0) return; moverAInventario(sol,n); sol.estado='Parcial '+n+'/'+sol.piezas; saveState(); renderSolicitudes(); renderInvTable(); };
-  $('#recRech').onclick=()=>{ sol.estado='Rechazada'; saveState(); renderSolicitudes(); };
+  $('#recAceptar').onclick=()=>{ moverAInventario(sol,sol.piezas); sol.estado='Aceptada'; saveState(); renderSolicitudes(); renderInvTable(); renderDashboard(); };
+  $('#recParcial').onclick=()=>{ const n=+prompt('Piezas a recibir',sol.piezas)||0; if(n<=0) return; moverAInventario(sol,n); sol.estado='Parcial '+n+'/'+sol.piezas; saveState(); renderSolicitudes(); renderInvTable(); renderDashboard(); };
+  $('#recRech').onclick=()=>{ sol.estado='Rechazada'; saveState(); renderSolicitudes(); renderDashboard(); };
 }
 function moverAInventario(sol,n){
   const p=state.productos.find(x=>x.sku===sol.sku); if(!p||p.etiqueta==='Servicio') return;
   p.batches=p.batches||[]; p.batches.push({lote:'BOD-'+sol.folio,cad:'',piezas:n});
+  state.kardex.unshift({fecha:new Date().toISOString(), tipo:'Surtido', detalle:`Bodega → Piso (${p.sku})`, cant:n});
 }
 
 /* ===== Config ===== */
@@ -499,7 +545,7 @@ function initInventarioUI(){
 }
 function initVentasUI(){
   $('#ventaBuscar').oninput=renderCatalogo;
-  setupSkuRapido(); // ENTER = SKU rápido
+  setupSkuRapido();
 
   // Escáner dedicado
   const scan=$('#barcodeInput'); const focusScan=()=>{ scan.focus(); scan.select?.(); };
@@ -542,16 +588,181 @@ function initReportesUI(){
   };
 }
 
+/* ===== DASHBOARD ===== */
+function dashboardCounts(){
+  // Alertas
+  const cadDias=state.params?.cadDias??30;
+  let pend=0, parc=0, bajo=0, crit=0, cadProx=0, cadVenc=0, sinPisoConBod=0;
+
+  const today=new Date();
+  const piso=state.productos.filter(p=>p.etiqueta!=='Servicio');
+  piso.forEach(p=>{
+    const stock=+getStock(p);
+    if(stock<=+(p.stockMin||state.params.stockCritico)) bajo++;
+    if(stock<=5) crit++;
+    (p.batches||[]).forEach(b=>{
+      if(!b.cad) return;
+      const dt=new Date(b.cad);
+      const diff=(dt - today)/(1000*3600*24);
+      if(diff<=cadDias && diff>=0) cadProx++;
+      if(diff<0) cadVenc++;
+    });
+  });
+
+  // Bodega (si hay) para “sin piso con bodega”
+  (state.bodegaProductos||[]).forEach(bp=>{
+    const pisoProd=state.productos.find(x=>x.sku===bp.sku);
+    const stockPiso= pisoProd ? +getStock(pisoProd) : 0;
+    const stockBod=(bp.batches||[]).reduce((s,b)=>s+Number(b.piezas||0),0);
+    if(stockPiso===0 && stockBod>0) sinPisoConBod++;
+  });
+
+  (state.solicitudes||[]).forEach(s=>{ if((s.estado||'Pendiente').startsWith('Pendiente')) pend++; if((s.estado||'').startsWith('Parcial')) parc++; });
+
+  return {pend, parc, bajo, crit, cadProx, cadVenc, sinPisoConBod};
+}
+
+function renderDashboard(){
+  // Alertas
+  const c=dashboardCounts();
+  $('#alSolPend')?.textContent=`Solicitudes Pendientes: ${c.pend}`;
+  $('#alSolParc')?.textContent=`Solicitudes Parciales: ${c.parc}`;
+  $('#alStockBajo')?.textContent=`Stock bajo: ${c.bajo}`;
+  $('#alStockCritico')?.textContent=`Stock crítico (=5): ${c.crit}`;
+  $('#alCadProx')?.textContent=`Próx. a caducar (≤${state.params.cadDias}d): ${c.cadProx}`;
+  $('#alCadVenc')?.textContent=`Caducados: ${c.cadVenc}`;
+  $('#alSinPisoConBod')?.textContent=`Sin piso con bodega: ${c.sinPisoConBod}`;
+
+  // Accesos rápidos
+  $$('.quick-actions .btn').forEach(b=>{
+    const goto=b.dataset.goto;
+    if(goto) b.onclick=()=>setActiveSection(goto);
+  });
+  $('[data-act="nuevoCliente"]')?.addEventListener('click',nuevoCliente);
+  $('[data-act="surtir"]')?.addEventListener('click',()=>setActiveSection('bodega'));
+  $('[data-act="nuevaSol"]')?.addEventListener('click',()=>setActiveSection('bodega'));
+
+  // Gráfica 7 días (barras)
+  const svg=$('#ch7d'); if(svg){
+    const days=[...Array(7)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(6-i)); return d; });
+    const totals=days.map(d=>state.ventas.filter(v=>ymd(v.fecha)===ymd(d)).reduce((s,v)=>s+v.total,0));
+    drawBars(svg, days.map(d=>d.toLocaleDateString('es-MX',{weekday:'short'})), totals);
+  }
+
+  // Donut pagos hoy
+  const pagos=countPagosHoy(); drawDonut($('#chDonutPago'), $('#legDonutPago'), pagos);
+
+  // Surtidos (solicitado vs atendido) – base con solicitudes (placeholder)
+  const svgS=$('#chSurtidos');
+  if(svgS){
+    const days=[...Array(7)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(6-i)); return d; });
+    const sol=days.map(d=>state.solicitudes.filter(s=>ymd(s.fecha||s.folio?.slice(2,12)||new Date())===ymd(d)).reduce(a=>a+1,0));
+    const at=days.map(d=>state.kardex.filter(k=>k.tipo==='Surtido' && ymd(k.fecha)===ymd(d)).reduce((s,k)=>s+k.cant,0));
+    drawBars(svgS, days.map(d=>d.toLocaleDateString('es-MX',{weekday:'short'})), sol, at, ['Solicitado','Atendido']);
+  }
+
+  // Últimas 10 ventas
+  const tb=$('#tblUltimas tbody'); if(tb){ tb.innerHTML=''; state.ventas.slice(0,10).forEach(v=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${v.fecha.replace('T',' ').slice(0,16)}</td><td>${money(v.total)}</td><td>${v.pago}</td>
+      <td><button class="btn btn-sm" data-f="${v.folio}">Reimprimir</button></td>`;
+    tb.appendChild(tr);
+  });
+  $$('#tblUltimas tbody .btn').forEach(b=>b.onclick=()=>{ const v=state.ventas.find(x=>x.folio===b.dataset.f); if(v) openTicketDialog(v); }); }
+
+  // Kardex reciente
+  const tk=$('#tblKardex tbody'); if(tk){ tk.innerHTML=''; state.kardex.slice(0,10).forEach(k=>{
+    const tr=document.createElement('tr'); tr.innerHTML=`<td>${k.fecha.replace('T',' ').slice(0,16)}</td><td>${k.tipo}</td><td>${k.detalle}</td><td>${k.cant}</td>`; tk.appendChild(tr);
+  }); }
+}
+
+function countPagosHoy(){
+  const hoy=todayISO();
+  const m={EFE:0,TAR:0,TRF:0,MIX:0};
+  state.ventas.filter(v=>v.fecha.slice(0,10)===hoy).forEach(v=>{ m[v.pago||'EFE']+=(v.total||0); });
+  return m;
+}
+
+/* ===== Dibujadores simples (SVG sin librerías) ===== */
+function drawBars(svg, labels, serieA, serieB=null, legendNames=['Serie A','Serie B']){
+  const W=600,H=220,PL=38,PR=10,PB=28,PT=10;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+  const maxVal=Math.max(1, ...(serieB?serieA.map((v,i)=>Math.max(v,serieB[i])):serieA));
+  const n=labels.length; const bw=(W-PL-PR)/n*0.6; const gap=((W-PL-PR)/n - bw);
+  const baseY=H-PB;
+
+  // Ejes
+  const axis=document.createElementNS('http://www.w3.org/2000/svg','line');
+  axis.setAttribute('x1',PL); axis.setAttribute('y1',baseY);
+  axis.setAttribute('x2',W-PR); axis.setAttribute('y2',baseY);
+  axis.setAttribute('stroke','#cbd5e1'); svg.appendChild(axis);
+
+  labels.forEach((lb,i)=>{
+    const x=PL + i*(bw+gap) + gap/2;
+    // barra A
+    const hA = (serieA[i]/maxVal)*(H-PB-PT);
+    const rA=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rA.setAttribute('x',x); rA.setAttribute('y',baseY-hA); rA.setAttribute('width',bw); rA.setAttribute('height',hA); rA.setAttribute('fill','var(--primary)');
+    svg.appendChild(rA);
+
+    if(serieB){
+      const hB=(serieB[i]/maxVal)*(H-PB-PT);
+      const rB=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rB.setAttribute('x',x+bw+2); rB.setAttribute('y',baseY-hB); rB.setAttribute('width',bw); rB.setAttribute('height',hB); rB.setAttribute('fill','#a3bffa');
+      svg.appendChild(rB);
+    }
+    const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',x + (serieB?(bw):bw/2)); t.setAttribute('y',H-8); t.setAttribute('text-anchor','middle'); t.setAttribute('font-size','10'); t.textContent=lb;
+    svg.appendChild(t);
+  });
+}
+function drawDonut(svg, legendWrap, dataMap){
+  if(!svg||!legendWrap) return;
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  legendWrap.innerHTML='';
+
+  const colors={EFE:'#60a5fa',TAR:'#34d399',TRF:'#fbbf24',MIX:'#f472b6'};
+  const total=Object.values(dataMap).reduce((a,b)=>a+b,0)||1;
+  const C=60, R=45, ST=14;
+  let angle=0;
+  Object.entries(dataMap).forEach(([key,val])=>{
+    const frac=val/total, a0=angle, a1=angle + frac*2*Math.PI; angle=a1;
+    // arco
+    const large=((a1-a0)>Math.PI)?1:0;
+    const p0=[C+R*Math.cos(a0), C+R*Math.sin(a0)];
+    const p1=[C+R*Math.cos(a1), C+R*Math.sin(a1)];
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',`M ${p0[0]} ${p0[1]} A ${R} ${R} 0 ${large} 1 ${p1[0]} ${p1[1]}`);
+    path.setAttribute('fill','none'); path.setAttribute('stroke',colors[key]||'#ccc'); path.setAttribute('stroke-width',ST);
+    svg.appendChild(path);
+
+    // leyenda
+    const row=document.createElement('div'); row.className='row';
+    const sw=document.createElement('span'); sw.className='swatch'; sw.style.background=colors[key]||'#ccc';
+    const tx=document.createElement('span'); tx.textContent=`${key}: ${money(val)}`;
+    row.appendChild(sw); row.appendChild(tx); legendWrap.appendChild(row);
+  });
+
+  const center=document.createElementNS('http://www.w3.org/2000/svg','text');
+  center.setAttribute('x',C); center.setAttribute('y',C+4); center.setAttribute('text-anchor','middle'); center.setAttribute('font-size','10');
+  center.textContent='Hoy'; svg.appendChild(center);
+}
+
 /* ===== Init ===== */
 document.addEventListener('DOMContentLoaded',()=>{
   initLayout(); applyThemePreview(); applyLogo(); refreshKPIs();
 
+  // Dashboard
+  renderDashboard();
+
+  // Módulos existentes
   initInventarioUI(); renderInvTable();
   initVentasUI(); renderCatalogo(); renderCart();
   initHistorialUI(); renderHistorial();
   initReportesUI(); renderReportes('d');
   initClientesUI(); renderClientes();
-  initConfig();
 
   // Ticket dialog buttons
   $('#btnPrintTicket').onclick=printCurrentTicket;

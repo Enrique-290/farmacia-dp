@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Farmacia DP v1</title>
-  <link rel="stylesheet" href="style.css?v=dp-1.8"/>
+  <link rel="stylesheet" href="style.css?v=dp-1.9"/>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
@@ -34,23 +34,92 @@
     <header class="topbar">
       <button id="btnOpen" class="icon-btn show-on-mobile">☰</button>
       <h1 id="sectionTitle">Dashboard</h1>
+      <!-- Nota: dejé el buscador global; lo retiramos cuando entremos a la parte del "súper buscador" de Ventas -->
       <input id="globalSearch" type="search" placeholder="Buscar…"/>
     </header>
 
-    <!-- Dashboard -->
+    <!-- ============= DASHBOARD ============= -->
     <section id="dashboard" class="view active">
-      <div class="grid kpis">
-        <div class="card">Ventas Hoy <strong id="kpiVentasHoy">$0.00</strong></div>
-        <div class="card">Tickets Hoy <strong id="kpiTicketsHoy">0</strong></div>
-        <div class="card">Productos vendidos <strong id="kpiProdVend">0</strong></div>
-        <div class="card">Ticket promedio <strong id="kpiTicketProm">$0.00</strong></div>
+      <!-- KPIs superiores -->
+      <div class="grid kpis kpis-6">
+        <div class="card kpi">Ventas Hoy <strong id="kpiVentasHoy">$0.00</strong></div>
+        <div class="card kpi">Tickets Hoy <strong id="kpiTicketsHoy">0</strong></div>
+        <div class="card kpi">Ticket promedio <strong id="kpiTicketProm">$0.00</strong></div>
+        <div class="card kpi">IVA Hoy <strong id="kpiIvaHoy">$0.00</strong></div>
+        <div class="card kpi">Ventas del mes <strong id="kpiVentasMes">$0.00</strong></div>
+        <div class="card kpi">Top Hoy <strong id="kpiTopHoy">—</strong></div>
       </div>
-      <div class="card" style="margin-top:12px">[Gráfica]</div>
+
+      <!-- Alertas -->
+      <div class="grid2 dash-row">
+        <div class="card">
+          <h3>Alertas</h3>
+          <div class="alerts">
+            <span class="chip info" id="alSolPend">Solicitudes Pendientes: 0</span>
+            <span class="chip warn" id="alSolParc">Solicitudes Parciales: 0</span>
+            <span class="chip warn" id="alStockBajo">Stock bajo: 0</span>
+            <span class="chip danger" id="alStockCritico">Stock crítico (=5): 0</span>
+            <span class="chip warn" id="alCadProx">Próx. a caducar (≤30d): 0</span>
+            <span class="chip danger" id="alCadVenc">Caducados: 0</span>
+            <span class="chip info" id="alSinPisoConBod">Sin piso con bodega: 0</span>
+          </div>
+          <div class="quick-actions">
+            <button class="btn" data-goto="ventas">+ Nueva venta</button>
+            <button class="btn" data-goto="bodega">Ingresar a bodega</button>
+            <button class="btn" data-act="surtir">Surtir a inventario</button>
+            <button class="btn" data-act="nuevaSol">Nueva solicitud</button>
+            <button class="btn" data-act="nuevoCliente">Nuevo cliente</button>
+            <button class="btn" data-goto="reportes">Reporte diario</button>
+          </div>
+        </div>
+
+        <!-- Donut de pagos -->
+        <div class="card">
+          <h3>Formas de pago (hoy)</h3>
+          <div class="chart-center">
+            <svg id="chDonutPago" viewBox="0 0 120 120" class="chart-donut"></svg>
+            <div class="legend" id="legDonutPago"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráficas -->
+      <div class="grid2 dash-row">
+        <div class="card">
+          <h3>Ventas últimos 7 días</h3>
+          <svg id="ch7d" viewBox="0 0 600 220" class="chart"></svg>
+        </div>
+        <div class="card">
+          <h3>Surtidos (Solicitado vs Atendido · 7 días)</h3>
+          <svg id="chSurtidos" viewBox="0 0 600 220" class="chart"></svg>
+        </div>
+      </div>
+
+      <!-- Listas recientes -->
+      <div class="grid2 dash-row">
+        <div class="card">
+          <h3>Últimas 10 ventas</h3>
+          <div class="table-wrap">
+            <table class="table" id="tblUltimas">
+              <thead><tr><th>Fecha/Hora</th><th>Total</th><th>Pago</th><th>Acciones</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Kardex reciente</h3>
+          <div class="table-wrap">
+            <table class="table" id="tblKardex">
+              <thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Cant.</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <!-- Ventas -->
+    <!-- ============= VENTAS ============= -->
     <section id="ventas" class="view">
-      <!-- Barra superior (súper buscador + escáner) -->
       <div class="ventas-topbar card">
         <input type="search" id="ventaBuscar" class="search-xl" placeholder="Buscar por nombre, SKU o etiqueta… (Enter = SKU rápido)"/>
         <div class="scanner">
@@ -94,7 +163,7 @@
       </div>
     </section>
 
-    <!-- Inventario -->
+    <!-- ============= INVENTARIO ============= -->
     <section id="inventario" class="view">
       <div class="inv-toolbar">
         <button id="btnNuevoProd" class="btn primary">+ Producto</button>
@@ -122,7 +191,7 @@
       </div>
     </section>
 
-    <!-- Bodega -->
+    <!-- ============= BODEGA (placeholder) ============= -->
     <section id="bodega" class="view">
       <div class="grid2">
         <div class="card">
@@ -139,7 +208,7 @@
       </div>
     </section>
 
-    <!-- Clientes -->
+    <!-- ============= CLIENTES ============= -->
     <section id="clientes" class="view">
       <div class="inv-toolbar">
         <button id="btnNuevoCliente" class="btn primary">+ Cliente</button>
@@ -154,7 +223,7 @@
       </div>
     </section>
 
-    <!-- Historial -->
+    <!-- ============= HISTORIAL ============= -->
     <section id="historial" class="view">
       <div class="inv-toolbar">
         <input id="fhDesde" type="date" class="input"/>
@@ -171,7 +240,7 @@
       </div>
     </section>
 
-    <!-- Reportes -->
+    <!-- ============= REPORTES ============= -->
     <section id="reportes" class="view">
       <div class="tabs">
         <button data-tab="d" class="tab active">Diario</button>
@@ -185,144 +254,71 @@
       </div>
     </section>
 
-    <!-- Configuración -->
-    <section id="config" class="view">
-      <div class="tabs">
-        <button class="tab active" data-tab="colores">Colores</button>
-        <button class="tab" data-tab="negocio">Datos del negocio</button>
-        <button class="tab" data-tab="ticket">Ticket 58mm</button>
-        <button class="tab" data-tab="resp">Respaldos</button>
-        <button class="tab" data-tab="web">Módulo web (próxima área)</button>
+    <!-- Ticket -->
+    <dialog id="dlgTicket" class="modal">
+      <div class="form">
+        <h3>Ticket 58 mm</h3>
+        <div id="ticketPreview" class="ticket"></div>
+        <div class="modal-actions">
+          <button id="btnPrintTicket" class="btn primary" type="button">Imprimir</button>
+          <button id="btnCloseTicket" class="btn" type="button">Cerrar</button>
+        </div>
       </div>
+    </dialog>
 
-      <div class="tabview active" data-tab="colores">
+    <!-- Modales Inventario -->
+    <dialog id="dlgProd" class="modal">
+      <form method="dialog" class="form" novalidate>
+        <h3 id="dlgProdTitle">Nuevo producto</h3>
         <div class="grid2">
-          <div class="card">
-            <h3>Colores del entorno</h3>
-            <div class="grid2">
-              <label>Menú <input type="color" id="tMenu"/></label>
-              <label>Fondo <input type="color" id="tFondo"/></label>
-              <label>Panel <input type="color" id="tPanel"/></label>
-              <label>Primario <input type="color" id="tPrim"/></label>
-              <label>Texto <input type="color" id="tText"/></label>
-            </div>
-            <div style="margin-top:10px">
-              <button id="btnGuardarTema" class="btn primary">Guardar tema</button>
-              <button id="btnResetTema" class="btn">Restablecer</button>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Vista previa</h3>
-            <div class="preview">
-              <div class="pv-menu">Menú</div>
-              <div class="pv-panel">Panel</div>
-            </div>
+          <label>SKU <input id="fSku" required/></label>
+          <label>Nombre <input id="fNombre" required/></label>
+          <label>Etiqueta
+            <select id="fEtiqueta">
+              <option>Genérico</option><option>Marca</option><option>Controlado</option><option>Servicio</option>
+            </select>
+          </label>
+          <label>Precio (venta) <input id="fPrecio" type="number" step="0.01" required/></label>
+          <label>Costo <input id="fCosto" type="number" step="0.01"/></label>
+          <label>Stock mínimo <input id="fMin" type="number" step="1" value="0"/></label>
+        </div>
+
+        <div class="grid2" style="margin-top:10px">
+          <label>Imagen (archivo)
+            <input id="fImgFile" type="file" accept="image/*"/>
+            <img id="fImgPrev" class="logo-prev" style="margin-top:6px" alt="Vista previa"/>
+            <button id="fImgQuitar" type="button" class="btn" style="margin-top:6px">Quitar imagen</button>
+          </label>
+          <div>
+            <label>Lote inicial (opcional) <input id="fLote0"/></label>
+            <label>Caducidad inicial <input id="fCad0" type="date"/></label>
+            <label>Piezas iniciales <input id="fPzs0" type="number" step="1" min="0"/></label>
           </div>
         </div>
-      </div>
 
-      <div class="tabview" data-tab="negocio">
+        <div class="modal-actions">
+          <button id="btnCancelProd" class="btn" type="button">Cancelar</button>
+          <button id="btnGuardarProd" class="btn primary" value="default">Guardar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="dlgStock" class="modal">
+      <form method="dialog" class="form">
+        <h3>Agregar stock (lote)</h3>
         <div class="grid2">
-          <div class="card">
-            <h3>Datos del negocio</h3>
-            <label>Nombre <input id="bizNombre"/></label>
-            <label>Dirección <input id="bizDir"/></label>
-            <label>Teléfono <input id="bizTel"/></label>
-            <label>E-mail <input id="bizMail"/></label>
-            <label>Logo <input id="bizLogo" type="file" accept="image/*"/></label>
-            <button id="btnGuardarBiz" class="btn primary">Guardar</button>
-          </div>
-          <div class="card">
-            <h3>Logo (vista previa)</h3>
-            <img id="bizLogoPreview" class="logo-prev" alt="Logo"/>
-          </div>
+          <label>Lote <input id="sLote" required/></label>
+          <label>Caducidad <input id="sCad" type="date"/></label>
+          <label>Piezas <input id="sPiezas" type="number" step="1" required/></label>
         </div>
-      </div>
-
-      <div class="tabview" data-tab="ticket">
-        <div class="card">
-          <p>El logo guardado se usa en el menú y en el ticket (auto-ajuste de tamaño). El ticket se imprime desde Ventas al **Cobrar** o desde **Historial → Ticket**.</p>
+        <div class="modal-actions">
+          <button id="btnCancelStock" class="btn" type="button">Cancelar</button>
+          <button id="btnGuardarStock" class="btn primary" value="default">Agregar</button>
         </div>
-      </div>
-
-      <div class="tabview" data-tab="resp">
-        <div class="card">
-          <h3>Respaldos</h3>
-          <button id="btnExportarJSON" class="btn">Exportar JSON</button>
-          <label class="filelike"><input id="fileImportJSON" type="file" accept=".json" hidden/>Importar JSON</label>
-        </div>
-      </div>
-
-      <div class="tabview" data-tab="web">
-        <div class="card">Próxima área para publicar página de venta.</div>
-      </div>
-    </section>
+      </form>
+    </dialog>
   </main>
 
-  <!-- Modales Inventario -->
-  <dialog id="dlgProd" class="modal">
-    <form method="dialog" class="form" novalidate>
-      <h3 id="dlgProdTitle">Nuevo producto</h3>
-      <div class="grid2">
-        <label>SKU <input id="fSku" required/></label>
-        <label>Nombre <input id="fNombre" required/></label>
-        <label>Etiqueta
-          <select id="fEtiqueta">
-            <option>Genérico</option><option>Marca</option><option>Controlado</option><option>Servicio</option>
-          </select>
-        </label>
-        <label>Precio (venta) <input id="fPrecio" type="number" step="0.01" required/></label>
-        <label>Costo <input id="fCosto" type="number" step="0.01"/></label>
-        <label>Stock mínimo <input id="fMin" type="number" step="1" value="0"/></label>
-      </div>
-
-      <div class="grid2" style="margin-top:10px">
-        <label>Imagen (archivo)
-          <input id="fImgFile" type="file" accept="image/*"/>
-          <img id="fImgPrev" class="logo-prev" style="margin-top:6px" alt="Vista previa"/>
-          <button id="fImgQuitar" type="button" class="btn" style="margin-top:6px">Quitar imagen</button>
-        </label>
-        <div>
-          <label>Lote inicial (opcional) <input id="fLote0"/></label>
-          <label>Caducidad inicial <input id="fCad0" type="date"/></label>
-          <label>Piezas iniciales <input id="fPzs0" type="number" step="1" min="0"/></label>
-        </div>
-      </div>
-
-      <div class="modal-actions">
-        <button id="btnCancelProd" class="btn" type="button">Cancelar</button>
-        <button id="btnGuardarProd" class="btn primary" value="default">Guardar</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="dlgStock" class="modal">
-    <form method="dialog" class="form">
-      <h3>Agregar stock (lote)</h3>
-      <div class="grid2">
-        <label>Lote <input id="sLote" required/></label>
-        <label>Caducidad <input id="sCad" type="date"/></label>
-        <label>Piezas <input id="sPiezas" type="number" step="1" required/></label>
-      </div>
-      <div class="modal-actions">
-        <button id="btnCancelStock" class="btn" type="button">Cancelar</button>
-        <button id="btnGuardarStock" class="btn primary" value="default">Agregar</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- Ticket -->
-  <dialog id="dlgTicket" class="modal">
-    <div class="form">
-      <h3>Ticket 58 mm</h3>
-      <div id="ticketPreview" class="ticket"></div>
-      <div class="modal-actions">
-        <button id="btnPrintTicket" class="btn primary" type="button">Imprimir</button>
-        <button id="btnCloseTicket" class="btn" type="button">Cerrar</button>
-      </div>
-    </div>
-  </dialog>
-
-  <script src="app.js?v=dp-1.8"></script>
+  <script src="app.js?v=dp-1.9"></script>
 </body>
 </html>
