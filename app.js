@@ -1,329 +1,312 @@
-/* Utils / storage */
-const $$ = (s)=>document.querySelector(s);
-const $$$ = (s)=>document.querySelectorAll(s);
-const money = (n)=> n.toLocaleString('es-MX',{style:'currency',currency:'MXN'});
-const DB = {
-  read(k,def){ try{return JSON.parse(localStorage.getItem(k)) ?? def}catch{ return def } },
-  write(k,v){ localStorage.setItem(k, JSON.stringify(v)) }
+console.log("App JS OK");
+
+// ---------- Utilidades ----------
+const $ = (sel, ctx=document) => ctx.querySelector(sel);
+const $$ = (sel, ctx=document) => Array.from(ctx.querySelectorAll(sel));
+const money = n => (n||0).toLocaleString('es-MX',{style:'currency',currency:'MXN'});
+
+// ---------- Estado (localStorage) ----------
+const LS = {
+  get(k, def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch{ return def; } },
+  set(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
 };
 
-/* Seed demo */
-(function seed(){
-  if(!DB.read('products')){
-    DB.write('products', [
-      {sku:'CONS-001', nombre:'Consulta médica', etiqueta:'Servicio', precio:100, costo:0, stock:null, min:0, lotes:[], img:''},
-      {sku:'7502166808119', nombre:'KETOROLACO SUBLINGUAL', etiqueta:'Genérico', precio:161, costo:120, stock:98, min:50, lotes:[{lote:'A1',pzas:98,cad:'2026-11-07'}], img:''},
-      {sku:'780083149888', nombre:'PARACETAMOL CAFEINA', etiqueta:'Genérico', precio:75,  costo:40,  stock:99, min:50, lotes:[{lote:'B1',pzas:99,cad:'2026-11-07'}], img:''},
-      {sku:'7501537103378', nombre:'DIFENHIDRAMINA', etiqueta:'Genérico', precio:65,  costo:30,  stock:98, min:50, lotes:[{lote:'C1',pzas:98,cad:'2026-11-07'}], img:''},
-    ]);
+// Productos demo si no hay
+let productos = LS.get("fdp_productos", null);
+if(!productos){
+  productos = [
+    {sku:"CONS-001", nombre:"Consulta médica", etiqueta:"Servicio", precio:100, stock:null, min:0, lotes:0, cadProx:null, img:null},
+    {sku:"P-001", nombre:"Paracetamol 500mg", etiqueta:"Generico", precio:25, stock:9, min:5, lotes:1, cadProx:"2026-01-20", img:null},
+    {sku:"A-010", nombre:"Amoxicilina 500mg", etiqueta:"Marca", precio:60, stock:4, min:3, lotes:1, cadProx:"2026-09-10", img:null},
+  ];
+  LS.set("fdp_productos", productos);
+}
+
+let ventas = LS.get("fdp_ventas", []);
+let cart = { items:[], extras:[], receta:null, pago:{metodo:"EFE", ref:""} };
+
+// ---------- Navegación ----------
+function showView(view){
+  $$('.view').forEach(v => v.classList.add('hidden'));
+  const tgt = $(`.view[data-view="${view}"]`);
+  if(tgt) tgt.classList.remove('hidden');
+  // guardar última vista
+  LS.set("fdp_last_view", view);
+  // refrescar secciones clave
+  if(view==="ventas"){ renderCatalogo(); renderCarrito(); }
+  if(view==="dashboard"){ updateDashboard(); }
+  if(view==="inventario"){ renderInventario(); }
+}
+
+function bindNav(){
+  $$('.nav [data-go]').forEach(a=>{
+    a.addEventListener('click', e=>{
+      e.preventDefault();
+      const v = a.getAttribute('data-go');
+      showView(v);
+    });
+  });
+  // arrancar en última vista o dashboard
+  showView(LS.get("fdp_last_view","dashboard"));
+}
+
+// ---------- Dashboard ----------
+function updateDashboard(){
+  const hoy = new Date().toISOString().slice(0,10);
+  const hoyVentas = ventas.filter(v => (v.fecha||"").startsWith(hoy));
+  const total = hoyVentas.reduce((s,v)=>s+v.total,0);
+  const tickets = hoyVentas.length;
+  const vendidos = hoyVentas.reduce((s,v)=>s+v.items.reduce((a,i)=>a+i.cant,0),0);
+  const ticketProm = tickets? total/tickets : 0;
+
+  $('#kpiVentasHoy').textContent = money(total);
+  $('#kpiTicketsHoy').textContent = tickets;
+  $('#kpiProdHoy').textContent = vendidos;
+  $('#kpiTicketProm').textContent = money(ticketProm);
+
+  // Alertas básicas
+  const low = productos.filter(p => Number.isFinite(p.stock) && p.stock<= (p.min||0));
+  const near = productos.filter(p => p.cadProx && (new Date(p.cadProx) - new Date())/86400000 <= 30);
+  const aS = $('#alertStockBajo'); const aC = $('#alertCad');
+  aS.innerHTML = low.length ? low.map(p=>`• ${p.nombre} — Stock: ${p.stock}`).join('<br>') : '(Vacío)';
+  aC.innerHTML = near.length? near.map(p=>`• ${p.nombre} — Cad.: ${p.cadProx}`).join('<br>') : '(Vacío)';
+}
+
+// ---------- Buscador + Escáner (super rápido) ----------
+function bindSearch(){
+  const topSearch = $('#topSearch');
+  if(topSearch){
+    topSearch.addEventListener('input', ()=> renderCatalogo(topSearch.value.trim()));
   }
-  if(!DB.read('sales')) DB.write('sales', []);
-})();
-
-/* Navegación */
-const views=['dashboard','ventas','inventario','bodega','clientes','historial','reportes','config'];
-$$$('nav .nav-btn').forEach(a=>{
-  a.onclick=()=>{
-    $$$('nav .nav-btn').forEach(b=>b.classList.remove('active'));
-    a.classList.add('active');
-    const id=a.getAttribute('data-go');
-    views.forEach(v=> $(`#view-${v}`).classList.add('hidden'));
-    $(`#view-${id}`).classList.remove('hidden');
-    $$('#viewTitle').textContent=a.textContent.trim().replace(/^[^\s]+\s/,'');
-    if(id==='ventas') renderVentas();
-    if(id==='inventario') renderInventario();
-    if(id==='historial') renderHist();
-    if(id==='reportes') renderReportes();
-    if(id==='dashboard') renderDashboard();
-  };
-});
-function $(s){return document.querySelector(s)}
-
-/* Topbar: buscador + escáner */
-$('#globalSearch').addEventListener('input', ()=>{
-  const q = $('#globalSearch').value.trim().toLowerCase();
-  if(!$('#view-ventas').classList.contains('hidden')) filterVentas(q);
-});
-$('#reactivarScanner').onclick = ()=>{ $('#scanInput').value=''; $('#scanInput').focus() };
-$('#scanInput').addEventListener('keydown', e=>{
-  if(e.key==='Enter'){
-    const code=e.target.value.trim();
-    if(code){ addToCart(code); e.target.value=''; }
-  }
-});
-
-/* === Ventas === */
-let CART=[];
-function renderVentas(){
-  const products = DB.read('products',[]);
-  const grid = $('#productGrid'); grid.innerHTML='';
-  products.forEach(p=>{
-    const sTxt = p.stock==null?'—':p.stock;
-    const card = document.createElement('div');
-    card.className='p-card';
-    card.innerHTML=`
-      <div class="p-thumb">${p.img?`<img src="${p.img}">`:'📦'}</div>
-      <div class="p-name">${p.nombre}</div>
-      <div class="muted">SKU: ${p.sku}</div>
-      <div class="row">
-        <div><strong>${money(p.precio)}</strong> <span class="muted">Stock: ${sTxt}</span></div>
-        <button class="btn light" data-sku="${p.sku}">Agregar</button>
-      </div>`;
-    card.querySelector('button').onclick=()=>addToCart(p.sku);
-    grid.appendChild(card);
-  });
-  renderCart();
-}
-function filterVentas(q){
-  $$('#productGrid .p-card').forEach(c=>{
-    c.style.display = c.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-}
-function addToCart(sku){
-  const products=DB.read('products',[]);
-  const p=products.find(x=>x.sku==sku);
-  if(!p) return alert('Producto no encontrado');
-  const e=CART.find(i=>i.sku==sku);
-  if(e) e.cant++; else CART.push({sku:p.sku,nombre:p.nombre,precio:p.precio,cant:1});
-  renderCart();
-}
-function renderCart(){
-  const box=$('#cart'); box.innerHTML=''; let total=0;
-  CART.forEach((i,idx)=>{
-    total+=i.precio*i.cant;
-    const row=document.createElement('div'); row.className='cart-item';
-    row.innerHTML=`
-      <div>${i.nombre}<div class="muted">${money(i.precio)}</div></div>
-      <div class="qty"><button data-a="-">−</button><div>${i.cant}</div><button data-a="+">+</button></div>
-      <div>${money(i.precio*i.cant)}</div>
-      <button class="btn danger" data-del="${idx}">✕</button>`;
-    row.querySelector('[data-a="+"]').onclick=()=>{i.cant++; renderCart()};
-    row.querySelector('[data-a="-"]').onclick=()=>{i.cant=Math.max(1,i.cant-1); renderCart()};
-    row.querySelector('[data-del]').onclick=()=>{CART.splice(idx,1); renderCart()};
-    box.appendChild(row);
-  });
-  const d=$('#extraDesc').dataset.savedDesc;
-  const m=Number($('#extraMonto').dataset.savedMonto||0);
-  if(d && m>0){
-    total+=m;
-    const r=document.createElement('div'); r.className='cart-item';
-    r.innerHTML=`<div><strong>${d.toUpperCase()}</strong></div><div></div><div>${money(m)}</div><button class="btn danger" id="delExtra">✕</button>`;
-    box.appendChild(r); $('#delExtra').onclick=()=>{ delete $('#extraDesc').dataset.savedDesc; delete $('#extraMonto').dataset.savedMonto; $('#extraDesc').value=''; $('#extraMonto').value=''; renderCart(); };
-  }
-  $('#total').textContent=money(total);
-}
-$('#agregarExtra').onclick=()=>{
-  const d=$('#extraDesc').value.trim(), m=Number($('#extraMonto').value||0);
-  if(!d || m<=0) return alert('Captura descripción y monto válido');
-  $('#extraDesc').dataset.savedDesc=d; $('#extraMonto').dataset.savedMonto=m; renderCart();
-};
-$('#btnVaciar').onclick=()=>{ CART=[]; delete $('#extraDesc').dataset.savedDesc; delete $('#extraMonto').dataset.savedMonto; $('#extraDesc').value=''; $('#extraMonto').value=''; $('#receta').value=''; renderCart(); };
-
-$('#btnCobrar').onclick=()=>{
-  if(CART.length===0 && !$('#extraDesc').dataset.savedDesc) return alert('Carrito vacío');
-  const items = CART.map(i=>({sku:i.sku,nombre:i.nombre,precio:i.precio,cant:i.cant}));
-  const extra = $('#extraDesc').dataset.savedDesc ? {desc:$('#extraDesc').dataset.savedDesc,monto:Number($('#extraMonto').dataset.savedMonto)} : null;
-  const total = items.reduce((a,b)=>a+b.precio*b.cant,0) + (extra?extra.monto:0);
-
-  const metodo=$('#metodoPago').value; const ref=$('#refPago').value.trim();
-  const recetaFile = $('#receta').files[0]?.name || null;
-  const folio='F-'+Math.random().toString(36).slice(2,7).toUpperCase();
-
-  // Descontar stock (no servicios)
-  const prods=DB.read('products',[]);
-  items.forEach(i=>{
-    const p=prods.find(x=>x.sku==i.sku);
-    if(p && p.stock!=null) p.stock=Math.max(0,(p.stock||0)-i.cant);
-  });
-  DB.write('products',prods);
-
-  const sales=DB.read('sales',[]);
-  sales.unshift({folio,fecha:new Date().toISOString(),cliente:'Público',items,extra,total,pago:metodo,referencia:ref||null,receta:recetaFile,estado:'Activa'});
-  DB.write('sales',sales);
-
-  printTicket({folio,total,fecha:new Date(),items,extra,pago:metodo,referencia:ref||null});
-  CART=[]; $('#receta').value=''; $('#refPago').value=''; delete $('#extraDesc').dataset.savedDesc; delete $('#extraMonto').dataset.savedMonto; $('#extraDesc').value=''; $('#extraMonto').value='';
-  renderCart(); renderInventario(); renderHist(); renderDashboard(); renderReportes();
-});
-function printTicket({folio,total,fecha,items,extra,pago,referencia}){
-  const L=[];
-  L.push('   Farmacia DP'); L.push('   SOLIDARIDAD'); L.push('   5526234556  •  FARMACIASDP@GMAIL.COM'); L.push('');
-  L.push(`Folio: ${folio}`); L.push(fecha.toLocaleString('es-MX')); L.push('--------------------------------');
-  items.forEach(i=>{ L.push(i.nombre.slice(0,28)); L.push(` ${i.cant} x ${money(i.precio).padStart(8)}  ${money(i.cant*i.precio).padStart(8)}`); });
-  if(extra){ L.push(extra.desc.slice(0,28)); L.push(` 1 x ${money(extra.monto).padStart(8)}  ${money(extra.monto).padStart(8)}`); }
-  L.push('--------------------------------'); L.push(`Total           ${money(total)}`); L.push(`Pago: ${pago}`); if(referencia) L.push(`Ref: ${referencia}`); L.push(''); L.push('¡Gracias por su compra!');
-  const w=window.open('','ticket','width=380,height=600');
-  w.document.write(`<pre style="font:14px/1.25 monospace; white-space:pre-wrap">${L.join('\n')}</pre><script>window.print();setTimeout(()=>window.close(),300);</script>`); w.document.close();
-}
-
-/* === Inventario (con imágenes locales) === */
-function renderInventario(){
-  const tb=$('#tablaInv tbody'); tb.innerHTML='';
-  const prods=DB.read('products',[]);
-  prods.forEach(p=>{
-    const cadprox=(p.lotes||[]).map(l=>l.cad).filter(Boolean).sort()[0]||'—';
-    const tr=document.createElement('tr');
-    tr.innerHTML=`
-      <td>${p.img?`<img src="${p.img}" style="width:34px;height:34px;border-radius:8px;object-fit:cover;border:1px solid #e5e7eb">`:'📦'}</td>
-      <td>${p.sku}</td><td>${p.nombre}</td><td><span class="pill">${p.etiqueta}</span></td>
-      <td>${money(p.precio)}</td><td>${p.stock==null?'—':p.stock}</td><td>${p.min||0}</td>
-      <td>${(p.lotes||[]).length||0}</td><td>${cadprox}</td>
-      <td><button class="btn light" data-ed="${p.sku}">Editar</button> ${p.stock==null?'':`<button class="btn light" data-add="${p.sku}">+Stock</button>`} <button class="btn gray" data-del="${p.sku}">Eliminar</button></td>`;
-    tr.querySelector('[data-del]').onclick=()=>{ if(confirm('Eliminar producto?')){ DB.write('products', prods.filter(x=>x.sku!==p.sku)); renderInventario(); }};
-    const add=tr.querySelector('[data-add]'); if(add) add.onclick=()=> modalAddStock(p.sku);
-    tr.querySelector('[data-ed]').onclick=()=> modalEditProd(p.sku);
-    tb.appendChild(tr);
-  });
-}
-$('#btnNuevoProd').onclick=()=>modalEditProd(null);
-
-function modalEditProd(sku){
-  const prods=DB.read('products',[]);
-  const p= sku? prods.find(x=>x.sku==sku) : {sku:'',nombre:'',etiqueta:'Genérico',precio:0,costo:0,stock:0,min:0,lotes:[],img:''};
-  const wrap=document.createElement('div');
-  wrap.innerHTML=`
-  <div style="position:fixed;inset:0;background:#0006;display:grid;place-items:center;z-index:50">
-    <div class="card pad" style="width:min(920px,94vw)">
-      <div class="section-title">${sku?'Editar':'Nuevo'} producto</div>
-      <div class="grid" style="grid-template-columns:1fr 1fr; gap:10px">
-        <div>SKU <input id="fsku" class="input" value="${p.sku||''}"></div>
-        <div>Nombre <input id="fnom" class="input" value="${p.nombre||''}"></div>
-        <div>Etiqueta
-          <select id="fetq">
-            ${['Genérico','Marca','Servicio','Controlado'].map(e=>`<option ${p.etiqueta===e?'selected':''}>${e}</option>`).join('')}
-          </select>
-        </div>
-        <div>Precio (venta) <input id="fpre" type="number" class="input" value="${p.precio||0}"></div>
-        <div>Costo <input id="fcosto" type="number" class="input" value="${p.costo||0}"></div>
-        <div>Stock mínimo <input id="fmin" type="number" class="input" value="${p.min||0}"></div>
-        <div>Stock (vacío = servicio) <input id="fstock" type="number" class="input" value="${p.stock??''}" placeholder="—"></div>
-        <div>Imagen (archivo local) <input id="fimg" type="file" class="file" accept="image/*"></div>
-      </div>
-      <div class="row" style="margin-top:12px">
-        <button class="btn gray" id="cancel">Cancelar</button>
-        <button class="btn" id="save">Guardar</button>
-      </div>
-    </div>
-  </div>`;
-  document.body.appendChild(wrap);
-  wrap.querySelector('#cancel').onclick=()=>wrap.remove();
-  wrap.querySelector('#save').onclick=async ()=>{
-    const skuV=wrap.querySelector('#fsku').value.trim(); if(!skuV) return alert('SKU requerido');
-    const obj={
-      sku:skuV,
-      nombre:wrap.querySelector('#fnom').value.trim(),
-      etiqueta:wrap.querySelector('#fetq').value,
-      precio:Number(wrap.querySelector('#fpre').value||0),
-      costo:Number(wrap.querySelector('#fcosto').value||0),
-      min:Number(wrap.querySelector('#fmin').value||0),
-      stock:(()=>{const v=wrap.querySelector('#fstock').value; return v===''?null:Number(v)})(),
-      lotes:p.lotes||[],
-      img:p.img||''
+  const scanner = $('#scannerInput');
+  const reAct = $('#scannerReactivate');
+  if(scanner){
+    const handler = ()=>{
+      const code = scanner.value.trim();
+      if(!code) return;
+      // buscar por SKU exacto
+      const p = productos.find(x => x.sku.toLowerCase() === code.toLowerCase());
+      if(p){ addToCart(p.sku, 1); }
+      scanner.value = "";
     };
-    const file=wrap.querySelector('#fimg').files[0];
-    if(file) obj.img = await readAsDataURL(file);
-    const idx=prods.findIndex(x=>x.sku==skuV);
-    if(idx>=0) prods[idx]=obj; else prods.push(obj);
-    DB.write('products',prods); wrap.remove(); renderInventario(); renderVentas();
-  };
-}
-function readAsDataURL(file){
-  return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(file); });
-}
-function modalAddStock(sku){
-  const prods=DB.read('products',[]); const p=prods.find(x=>x.sku==sku);
-  const wrap=document.createElement('div');
-  wrap.innerHTML=`
-  <div style="position:fixed;inset:0;background:#0006;display:grid;place-items:center;z-index:50">
-    <div class="card pad" style="width:min(560px,94vw)">
-      <div class="section-title">Agregar stock (lote)</div>
-      <div class="grid" style="grid-template-columns:1fr 1fr; gap:10px">
-        <div>Lote <input id="slote" class="input" placeholder="Identificador"></div>
-        <div>Caducidad <input id="scad" class="input" type="date"></div>
-        <div style="grid-column:1/3">Piezas <input id="spzas" class="input" type="number" placeholder="0"></div>
-      </div>
-      <div class="row" style="margin-top:12px">
-        <button class="btn gray" id="cancel">Cancelar</button>
-        <button class="btn" id="ok">Agregar</button>
-      </div>
-    </div>
-  </div>`;
-  document.body.appendChild(wrap);
-  wrap.querySelector('#cancel').onclick=()=>wrap.remove();
-  wrap.querySelector('#ok').onclick=()=>{
-    const lote=$('#slote').value.trim(), cad=$('#scad').value||'', pzas=Number($('#spzas').value||0);
-    if(!lote || pzas<=0) return alert('Completa lote y piezas');
-    p.lotes=p.lotes||[]; p.lotes.push({lote,cad,pzas}); p.stock=(p.stock||0)+pzas; DB.write('products',prods); wrap.remove(); renderInventario();
-  };
+    // muchos lectores envían Enter
+    scanner.addEventListener('keydown', e=>{
+      if(e.key==="Enter"){ e.preventDefault(); handler(); }
+    });
+    scanner.addEventListener('change', handler);
+  }
+  if(reAct){
+    reAct.addEventListener('click', ()=>{
+      $('#scannerInput')?.focus();
+    });
+  }
 }
 
-/* Historial */
-function renderHist(){
-  const tb=$('#tablaHist tbody'); tb.innerHTML='';
-  DB.read('sales',[]).forEach(s=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${s.folio}</td><td>${new Date(s.fecha).toLocaleString('es-MX')}</td><td>${s.cliente}</td><td>${money(s.total)}</td><td>${s.pago}</td><td>${s.receta?'📎':''}</td><td>${s.estado}</td><td><button class="btn light" data-ver="${s.folio}">Ver</button> <button class="btn danger" data-an="${s.folio}">Anular</button></td>`;
-    tr.querySelector('[data-ver]').onclick=()=>showSale(s.folio);
-    tr.querySelector('[data-an]').onclick=()=>cancelSale(s.folio);
-    tb.appendChild(tr);
+// ---------- Ventas (catálogo + carrito) ----------
+function renderCatalogo(filtro=""){
+  const cont = $('#catalogo'); if(!cont) return;
+  const q = filtro.toLowerCase();
+  let list = productos.slice();
+  if(q){
+    list = list.filter(p =>
+      (p.nombre||"").toLowerCase().includes(q) ||
+      (p.sku||"").toLowerCase().includes(q) ||
+      (p.etiqueta||"").toLowerCase().includes(q)
+    );
+  }
+  cont.innerHTML = list.map(p=>`
+    <div class="prod-card">
+      <div class="thumb">${p.img? `<img src="${p.img}" alt="">` : '🧴'}</div>
+      <div class="name">${p.nombre}</div>
+      <div class="sku">SKU: ${p.sku}</div>
+      <div class="row">
+        <div class="price">${money(p.precio)}</div>
+        <div class="sku" style="margin-left:auto;">Stock: ${p.stock ?? '—'}</div>
+      </div>
+      <button class="btn" data-add="${p.sku}">Agregar</button>
+    </div>
+  `).join('');
+
+  // botones agregar
+  $$('[data-add]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const sku = b.getAttribute('data-add');
+      addToCart(sku,1);
+    });
   });
 }
-function showSale(folio){
-  const s=DB.read('sales',[]).find(x=>x.folio==folio); if(!s) return;
-  const wrap=document.createElement('div');
-  wrap.innerHTML=`
-  <div style="position:fixed;inset:0;background:#0006;display:grid;place-items:center;z-index:50">
-    <div class="card pad" style="width:min(720px,94vw)">
-      <div class="section-title">Venta ${folio}</div>
-      <div class="muted">${new Date(s.fecha).toLocaleString('es-MX')}</div>
-      <div style="margin:10px 0">
-        ${s.items.map(i=>`${i.cant}x ${i.nombre} — ${money(i.precio*i.cant)}`).join('<br>')}
-        ${s.extra?('<br><strong>'+s.extra.desc+'</strong> — '+money(s.extra.monto)) : ''}
-      </div>
-      <div><strong>Total: ${money(s.total)}</strong></div>
-      <div>Pago: ${s.pago}${s.referencia?` — Ref: ${s.referencia}`:''}</div>
-      <div class="row" style="margin-top:12px">
-        <button class="btn gray" id="cerrar">Cerrar</button>
-        <button class="btn" id="reimprimir">Reimprimir Ticket</button>
-      </div>
-    </div>
-  </div>`;
-  document.body.appendChild(wrap);
-  wrap.querySelector('#cerrar').onclick=()=>wrap.remove();
-  wrap.querySelector('#reimprimir').onclick=()=>printTicket({folio:s.folio,total:s.total,fecha:new Date(s.fecha),items:s.items,extra:s.extra,pago:s.pago,referencia:s.referencia});
-}
-function cancelSale(folio){
-  const prods=DB.read('products',[]), sales=DB.read('sales',[]), s=sales.find(x=>x.folio==folio);
-  if(!s || s.estado!=='Activa') return;
-  if(!confirm('¿Anular venta y regresar stock?')) return;
-  s.items.forEach(i=>{ const p=prods.find(x=>x.sku==i.sku); if(p && p.stock!=null) p.stock+=i.cant; });
-  s.estado='Anulada'; DB.write('products',prods); DB.write('sales',sales); renderHist(); renderInventario(); renderReportes(); renderDashboard();
+
+function addToCart(sku, cant){
+  const p = productos.find(x=>x.sku===sku); if(!p) return;
+  // servicios (stock null) siempre disponibles
+  if(Number.isFinite(p.stock) && p.stock < cant){
+    alert('Sin stock suficiente');
+    return;
+  }
+  const item = cart.items.find(i=>i.sku===sku);
+  if(item){ item.cant += cant; }
+  else { cart.items.push({sku:p.sku, nombre:p.nombre, precio:p.precio, cant: cant}); }
+  renderCarrito();
 }
 
-/* Reportes + Dashboard */
-function renderReportes(){
-  const sales=DB.read('sales',[]).filter(s=>s.estado==='Activa');
-  const total=sales.reduce((a,b)=>a+b.total,0); const prom=sales.length? total/sales.length : 0;
-  const sum={EFE:0,TAR:0,TRA:0,OTR:0}; sales.forEach(s=>{ sum[s.pago]=(sum[s.pago]||0)+s.total; });
-  $('#repResumen').children[0].textContent='Total ventas: '+money(total);
-  $('#repResumen').children[1].textContent='Tickets: '+sales.length;
-  $('#repResumen').children[2].textContent='Ticket promedio: '+money(prom);
-  const cnt={}; sales.forEach(s=>s.items.forEach(i=>{ cnt[i.nombre]=(cnt[i.nombre]||0)+i.cant; }));
-  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>`${e[0]} (${e[1]})`).join(', ')||'—';
-  $('#repResumen').children[3].textContent='Top productos: '+top;
-  $('#repMetodos').textContent=`Por método: EFE ${money(sum.EFE)} | TAR ${money(sum.TAR)} | TRA ${money(sum.TRA)} | OTR ${money(sum.OTR)}`;
-}
-function renderDashboard(){
-  const today=new Date().toISOString().slice(0,10);
-  const sales=DB.read('sales',[]).filter(s=>s.estado==='Activa' && s.fecha.slice(0,10)===today);
-  const total=sales.reduce((a,b)=>a+b.total,0), items=sales.reduce((a,b)=>a+b.items.reduce((x,y)=>x+y.cant,0),0);
-  $('#kpiVentas').textContent=money(total); $('#kpiTickets').textContent=sales.length; $('#kpiItems').textContent=items; $('#kpiProm').textContent=money(sales.length? total/sales.length : 0);
-  const prods=DB.read('products',[]); const bajas=prods.filter(p=>p.stock!=null && p.stock<= (p.min||0)).map(p=>`${p.nombre} (${p.stock})`).join(', ');
-  $('#alertStock').textContent=bajas||'(Vacío)';
-  const proximas=prods.flatMap(p=>(p.lotes||[]).filter(l=>l.cad && daysTo(l.cad)<=30).map(()=>p.nombre)).slice(0,5);
-  $('#alertCad').textContent=proximas.length? [...new Set(proximas)].join(', ') : '(Vacío)';
-}
-function daysTo(d){ const a=new Date(d), b=new Date(); return Math.ceil((a-b)/86400000); }
+function renderCarrito(){
+  const list = $('#cartList'); if(!list) return;
+  if(cart.items.length===0 && cart.extras.length===0){
+    list.classList.add('empty'); list.textContent='(Vacío)';
+  } else {
+    list.classList.remove('empty');
+    list.innerHTML = `
+      ${cart.items.map((i,idx)=>`
+        <div class="row" style="justify-content:space-between;">
+          <div>${i.nombre} <span class="sku">x${i.cant}</span></div>
+          <div class="row">
+            <button class="btn ghost" data-menos="${idx}">−</button>
+            <button class="btn ghost" data-mas="${idx}">+</button>
+            <button class="btn danger ghost" data-del="${idx}">✕</button>
+          </div>
+        </div>
+      `).join('')}
+      ${cart.extras.map((e,idx)=>`
+        <div class="row" style="justify-content:space-between;">
+          <div>${e.desc}</div>
+          <div class="row">
+            <strong>${money(e.monto)}</strong>
+            <button class="btn danger ghost" data-delx="${idx}" title="Quitar">✕</button>
+          </div>
+        </div>
+      `).join('')}
+    `;
+  }
+  // totales
+  const t = cart.items.reduce((s,i)=> s + i.precio*i.cant, 0) + cart.extras.reduce((s,e)=>s+e.monto,0);
+  $('#cartTotal').textContent = money(t);
 
-/* Inicial */
-renderDashboard();
+  // binds
+  $$('[data-mas]').forEach(b=> b.onclick = ()=>{ cart.items[+b.dataset.mas].cant++; renderCarrito(); });
+  $$('[data-menos]').forEach(b=> b.onclick = ()=>{ const it=cart.items[+b.dataset.menos]; it.cant=Math.max(1, it.cant-1); renderCarrito(); });
+  $$('[data-del]').forEach(b=> b.onclick = ()=>{ cart.items.splice(+b.dataset.del,1); renderCarrito(); });
+  $$('[data-delx]').forEach(b=> b.onclick = ()=>{ cart.extras.splice(+b.dataset.delx,1); renderCarrito(); });
+}
+
+function bindVentas(){
+  $('#btnAddExtra')?.addEventListener('click', ()=>{
+    const d = ($('#extraDesc')?.value||'').trim();
+    const m = parseFloat($('#extraMonto')?.value||'0');
+    if(!d || !isFinite(m) || m<=0) return;
+    cart.extras.push({desc:d, monto:m});
+    $('#extraDesc').value=''; $('#extraMonto').value='';
+    renderCarrito();
+  });
+
+  $('#btnVaciar')?.addEventListener('click', ()=>{
+    cart = { items:[], extras:[], receta:null, pago:{metodo: $('#paymentMethod')?.value || 'EFE', ref: $('#paymentRef')?.value || ''} };
+    renderCarrito();
+  });
+
+  $('#paymentMethod')?.addEventListener('change', e=>{
+    cart.pago.metodo = e.target.value;
+  });
+  $('#paymentRef')?.addEventListener('input', e=>{
+    cart.pago.ref = e.target.value;
+  });
+
+  $('#btnCobrar')?.addEventListener('click', ()=>{
+    const total = cart.items.reduce((s,i)=> s + i.precio*i.cant, 0) + cart.extras.reduce((s,e)=>s+e.monto,0);
+    if(total<=0){ alert('Carrito vacío'); return; }
+
+    // baja stock para productos con stock finito
+    cart.items.forEach(i=>{
+      const p = productos.find(x=>x.sku===i.sku);
+      if(p && Number.isFinite(p.stock)) p.stock = Math.max(0, p.stock - i.cant);
+    });
+    LS.set("fdp_productos", productos);
+
+    const venta = {
+      folio: "F-" + Math.random().toString(36).slice(2,8).toUpperCase(),
+      fecha: new Date().toISOString(),
+      items: JSON.parse(JSON.stringify(cart.items)),
+      extras: JSON.parse(JSON.stringify(cart.extras)),
+      pago: {...cart.pago},
+      total
+    };
+    ventas.unshift(venta);
+    LS.set("fdp_ventas", ventas);
+
+    alert(`Cobro registrado\nMétodo: ${cart.pago.metodo}\nTotal: ${money(total)}\nFolio: ${venta.folio}`);
+    // reset carrito
+    cart = { items:[], extras:[], receta:null, pago:{metodo: $('#paymentMethod')?.value || 'EFE', ref: ''} };
+    renderCarrito();
+    updateDashboard();
+    renderCatalogo($('#topSearch')?.value || '');
+  });
+}
+
+// ---------- Inventario (listado simple) ----------
+function renderInventario(){
+  const tbody = $('#invTable tbody'); if(!tbody) return;
+  const q = ($('#invSearch')?.value||'').toLowerCase();
+  const tag = $('#invFilterTag')?.value||'';
+
+  const list = productos.filter(p=>{
+    const hit = (p.nombre||'').toLowerCase().includes(q) || (p.sku||'').toLowerCase().includes(q);
+    const t = !tag || (p.etiqueta||'').toLowerCase() === tag.toLowerCase();
+    return hit && t;
+  });
+
+  tbody.innerHTML = list.map(p=>`
+    <tr>
+      <td>${p.img? `<img src="${p.img}" alt="">`: '—'}</td>
+      <td>${p.sku}</td>
+      <td>${p.nombre}</td>
+      <td>${p.etiqueta||''}</td>
+      <td>${money(p.precio)}</td>
+      <td>${p.stock ?? '—'}</td>
+      <td>${p.min ?? 0}</td>
+      <td>${p.lotes ?? 0}</td>
+      <td>${p.cadProx ?? '—'}</td>
+      <td><button class="btn ghost" data-addstock="${p.sku}">+Stock</button></td>
+    </tr>
+  `).join('');
+
+  // sumar stock rápido (sin modal, para probar navegación)
+  $$('[data-addstock]').forEach(b=>{
+    b.onclick = ()=>{
+      const sku = b.dataset.addstock;
+      const p = productos.find(x=>x.sku===sku);
+      if(!p) return;
+      const n = Number(prompt(`Piezas a sumar para ${p.nombre}:`, "1"));
+      if(!Number.isFinite(n) || n<=0) return;
+      if(!Number.isFinite(p.stock)){
+        alert('Este artículo es de tipo Servicio (sin stock).'); return;
+      }
+      p.stock += n;
+      LS.set("fdp_productos", productos);
+      renderInventario();
+      updateDashboard();
+    };
+  });
+}
+
+function bindInventario(){
+  $('#invSearch')?.addEventListener('input', renderInventario);
+  $('#invFilterTag')?.addEventListener('change', renderInventario);
+  $('#btnNuevoProd')?.addEventListener('click', ()=>{
+    const sku = prompt("SKU:"); if(!sku) return;
+    const nombre = prompt("Nombre:") || "Nuevo producto";
+    const etiqueta = prompt("Etiqueta (Generico/Marca/Controlado/Servicio):") || "Generico";
+    const precio = Number(prompt("Precio:", "0")) || 0;
+    const esServicio = (etiqueta.toLowerCase()==="servicio");
+    const stock = esServicio? null : (Number(prompt("Stock inicial:", "0"))||0);
+    productos.push({sku, nombre, etiqueta, precio, stock, min:0, lotes: esServicio? 0:1, cadProx:null, img:null});
+    LS.set("fdp_productos", productos);
+    renderInventario();
+    renderCatalogo($('#topSearch')?.value || '');
+  });
+}
+
+// ---------- Init ----------
+bindNav();
+bindSearch();
+bindVentas();
+bindInventario();
+updateDashboard();
