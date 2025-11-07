@@ -1,51 +1,44 @@
-<!-- En tu NAV, coloca el botón primero -->
-<button data-tab="dashboard" class="active">📊 Dashboard</button>
-<!-- (y mueve el "active" al que corresponda en tu app) -->
-
-<!-- Sección DASHBOARD (colócala al inicio del <main>) -->
 <section id="tab-dashboard">
   <div class="dash">
     <!-- KPIs -->
     <div class="dash-kpis">
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-kpi-title">Ventas hoy</div>
         <div class="dash-kpi-big" id="db_ventas_hoy">$0.00</div>
       </div>
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-kpi-title">Tickets hoy</div>
         <div class="dash-kpi-big" id="db_tickets_hoy">0</div>
       </div>
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-kpi-title">Promedio ticket</div>
         <div class="dash-kpi-big" id="db_prom_ticket">$0.00</div>
       </div>
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-kpi-title">IVA hoy</div>
         <div class="dash-kpi-big" id="db_iva_hoy">$0.00</div>
       </div>
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-kpi-title">Ventas del mes</div>
         <div class="dash-kpi-big" id="db_ventas_mes">$0.00</div>
       </div>
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-kpi-title">Top producto (hoy)</div>
         <div class="dash-kpi-big small" id="db_top_prod">—</div>
       </div>
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-kpi-title">Top servicio (hoy)</div>
         <div class="dash-kpi-big small" id="db_top_serv">—</div>
       </div>
     </div>
 
-    <!-- Alertas -->
     <div class="dash-grid">
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-card-title">Alertas</div>
         <ul class="dash-list" id="db_alertas"></ul>
       </div>
 
-      <!-- Accesos rápidos -->
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-card-title">Accesos rápidos</div>
         <div class="dash-actions">
           <button class="btn" data-goto="ventas">Nueva venta</button>
@@ -58,32 +51,30 @@
       </div>
     </div>
 
-    <!-- Gráficas -->
     <div class="dash-grid">
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-card-title">Ventas últimos 7 días</div>
-        <canvas id="db_chart_7d" height="140"></canvas>
+        <canvas id="db_chart_7d" class="dash-canvas" height="140"></canvas>
       </div>
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-card-title">Formas de pago</div>
-        <canvas id="db_chart_pago" height="140"></canvas>
+        <canvas id="db_chart_pago" class="dash-canvas" height="140"></canvas>
       </div>
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-card-title">Surtidos (solicitado vs atendido, 7 días)</div>
-        <canvas id="db_chart_surtidos" height="140"></canvas>
+        <canvas id="db_chart_surtidos" class="dash-canvas" height="140"></canvas>
       </div>
     </div>
 
-    <!-- Listas recientes -->
     <div class="dash-grid">
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-card-title">Últimas 10 ventas</div>
         <table class="table dash-table">
           <thead><tr><th>Fecha</th><th>Pago</th><th>Total</th><th></th></tr></thead>
           <tbody id="db_ult_ventas"></tbody>
         </table>
       </div>
-      <div class="dash-card">
+      <div class="dash-card card">
         <div class="dash-card-title">Kardex reciente</div>
         <table class="table dash-table">
           <thead><tr><th>Fecha</th><th>SKU</th><th>Tipo</th><th>Detalle</th><th>Cant</th></tr></thead>

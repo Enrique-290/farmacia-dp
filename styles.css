@@ -1,29 +1,26 @@
-/* ==== DASHBOARD (AISLADO) ==== */
+/* === Layout del Dashboard (aislado) === */
 #tab-dashboard { display:block; }
-.dash { display:grid; gap:12px; }
-.dash-kpis {
+.dash{ display:grid; gap:12px; }
+.dash-kpis{
   display:grid;
   grid-template-columns: repeat(7, minmax(140px,1fr));
-  gap:10px;
+  gap:12px;
 }
-@media (max-width:1280px){ .dash-kpis{ grid-template-columns: repeat(4,1fr);} }
-@media (max-width:768px){ .dash-kpis{ grid-template-columns: repeat(2,1fr);} }
+@media (max-width:1280px){ .dash-kpis{ grid-template-columns: repeat(4,1fr); } }
+@media (max-width:768px){ .dash-kpis{ grid-template-columns: repeat(2,1fr); } }
 
-.dash-card {
-  background: var(--panel, #fff);
-  border: 1px solid var(--line, #e5e7eb);
-  border-radius: 12px;
-  padding: 10px;
-}
-.dash-kpi-title { font-size:12px; opacity:.75; }
-.dash-kpi-big { font-weight:800; font-size:20px; line-height:1.1; margin-top:6px; }
-.dash-kpi-big.small{ font-size:14px; font-weight:700; }
+.dash-card-title{ font-weight:700; margin-bottom:6px; }
+.dash-kpi-title{ font-size:12px; opacity:.75; }
+.dash-kpi-big{ font-weight:800; font-size:20px; line-height:1.1; margin-top:6px; }
+.dash-kpi-big.small{ font-size:14px; }
 
-.dash-grid { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
+.dash-grid{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; }
 @media (max-width:1024px){ .dash-grid{ grid-template-columns:1fr; } }
 
-.dash-card-title { font-weight:700; margin-bottom:6px; }
-.dash-list { margin:0; padding-left:18px; display:grid; gap:6px; }
-.dash-actions { display:flex; flex-wrap:wrap; gap:8px; }
-.dash-table { width:100%; border-collapse:collapse; }
-.dash-table th, .dash-table td { padding:8px; border-bottom:1px solid var(--line, #e5e7eb); }
+.dash-list{ margin:0; padding-left:18px; display:grid; gap:6px; }
+.dash-actions{ display:flex; flex-wrap:wrap; gap:8px; }
+
+.dash-table{ width:100%; border-collapse:collapse; }
+.dash-table th, .dash-table td{ padding:8px; }
+
+.dash-canvas{ width:100%; display:block; }
