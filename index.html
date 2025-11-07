@@ -4,8 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Farmacia DP v1</title>
-
-  <link rel="stylesheet" href="style.css?v=dp-1.6"/>
+  <link rel="stylesheet" href="style.css?v=dp-1.7"/>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
@@ -51,20 +50,17 @@
 
     <!-- Ventas -->
     <section id="ventas" class="view">
-      <div class="ventas-wrap">
-        <div class="ventas-toolbar">
-          <input type="search" id="ventaBuscar" placeholder="Buscar producto o SKU…"/>
-          <select id="ventaEtiqueta">
-            <option value="">Todas las etiquetas</option>
-            <option>Genérico</option><option>Marca</option><option>Controlado</option><option>Servicio</option>
-          </select>
-          <div class="scanner">
-            <label for="barcodeInput">Escáner:</label>
-            <input id="barcodeInput" type="text" placeholder="Apunta el lector aquí…"/>
-            <button id="reactivarScanner" class="btn">Reactivar</button>
-          </div>
+      <!-- Barra superior (súper buscador + escáner) -->
+      <div class="ventas-topbar card">
+        <input type="search" id="ventaBuscar" class="search-xl" placeholder="Buscar por nombre, SKU o etiqueta…"/>
+        <div class="scanner">
+          <label for="barcodeInput">Escáner:</label>
+          <input id="barcodeInput" type="text" placeholder="Apunta el lector aquí…"/>
+          <button id="reactivarScanner" class="btn">Reactivar</button>
         </div>
+      </div>
 
+      <div class="ventas-wrap">
         <div id="catalogoProductos" class="catalogo"></div>
 
         <aside id="carritoPanel" class="carrito">
@@ -244,9 +240,7 @@
       </div>
 
       <div class="tabview" data-tab="ticket">
-        <div class="card">
-          <p>El logo guardado se usa en el menú y en el ticket (auto-ajuste de tamaño).</p>
-        </div>
+        <div class="card"><p>El logo guardado se usa en el menú y en el ticket (auto-ajuste de tamaño).</p></div>
       </div>
 
       <div class="tabview" data-tab="resp">
@@ -278,13 +272,21 @@
         <label>Precio (venta) <input id="fPrecio" type="number" step="0.01" required/></label>
         <label>Costo <input id="fCosto" type="number" step="0.01"/></label>
         <label>Stock mínimo <input id="fMin" type="number" step="1" value="0"/></label>
-        <label>Imagen (URL) <input id="fImg" placeholder="https://..."/></label>
       </div>
+
       <div class="grid2" style="margin-top:10px">
-        <label>Lote inicial (opcional) <input id="fLote0"/></label>
-        <label>Caducidad inicial <input id="fCad0" type="date"/></label>
-        <label>Piezas iniciales <input id="fPzs0" type="number" step="1" min="0"/></label>
+        <label>Imagen (archivo)
+          <input id="fImgFile" type="file" accept="image/*"/>
+          <img id="fImgPrev" class="logo-prev" style="margin-top:6px" alt="Vista previa"/>
+          <button id="fImgQuitar" type="button" class="btn" style="margin-top:6px">Quitar imagen</button>
+        </label>
+        <div>
+          <label>Lote inicial (opcional) <input id="fLote0"/></label>
+          <label>Caducidad inicial <input id="fCad0" type="date"/></label>
+          <label>Piezas iniciales <input id="fPzs0" type="number" step="1" min="0"/></label>
+        </div>
       </div>
+
       <div class="modal-actions">
         <button id="btnCancelProd" class="btn" type="button">Cancelar</button>
         <button id="btnGuardarProd" class="btn primary" value="default">Guardar</button>
@@ -307,6 +309,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=dp-1.6"></script>
+  <script src="app.js?v=dp-1.7"></script>
 </body>
 </html>

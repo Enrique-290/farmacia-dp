@@ -3,7 +3,7 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations?.().then(l=>l.forEach(r=>r.unregister()));
   }
-  window.__DP_BUILD='dp-1.6';
+  window.__DP_BUILD='dp-1.7';
   console.log('Farmacia DP build:',__DP_BUILD);
 })();
 
@@ -22,8 +22,8 @@ const DEFAULT_STATE={
     {sku:'A-010',name:'Amoxicilina 500mg',etiqueta:'Marca',price:60,cost:25,stockMin:3,img:'',batches:[{lote:'AMX-01',cad:'2026-09-10',piezas:5}]},
     {sku:'CONS-001',name:'Consulta médica',etiqueta:'Servicio',price:100,cost:0,stockMin:0,img:'',batches:[]}
   ],
-  solicitudes:[], // bodega
-  ventas:[], // historial
+  solicitudes:[],
+  ventas:[],
   clientes:[{nombre:'Público General',telefono:'',email:'',compras:0,ultima:''}],
   theme:{menu:'#0a6cff',fondo:'#f7f9fc',panel:'#ffffff',prim:'#0a6cff',text:'#111111'},
   negocio:{nombre:'Farmacia DP',dir:'',tel:'',mail:'',logo:''}
@@ -64,7 +64,7 @@ function setActiveSection(id){
   $$('.nav-link').forEach(b=>b.classList.toggle('active',b.dataset.section===id));
   $$('.view').forEach(v=>v.classList.toggle('active',v.id===id));
   $('#sectionTitle').textContent=id.charAt(0).toUpperCase()+id.slice(1);
-  if(id==='ventas'){ renderCatalogo(); renderCart(); }
+  if(id==='ventas'){ renderCatalogo(); renderCart(); setTimeout(()=>$('#ventaBuscar')?.focus(),50); }
   if(id==='inventario'){ renderInvTable(); }
   if(id==='bodega'){ renderSolicitudes(); }
   if(id==='historial'){ renderHistorial(); }
@@ -85,7 +85,7 @@ const nextCadProxima=p=>{
   return futuras[0]?.cad||'—';
 };
 
-const inv={editIndex:-1, stockSku:null};
+const inv={editIndex:-1, stockSku:null, imgData:null};
 function renderInvTable(){
   const tbody=$('#tablaInv tbody'); const txt=($('#invBuscar').value||'').toLowerCase(); const tag=$('#invEtiqueta').value||'';
   let low=0,cad=0;
@@ -113,33 +113,39 @@ function renderInvTable(){
   $('#badgeCad').textContent=`Próximas caducidades: ${cad}`;
 }
 function openProdDialog(i=-1){
-  inv.editIndex=i; const isEdit=i>-1; $('#dlgProdTitle').textContent=isEdit?'Editar producto':'Nuevo producto';
-  const f=(id,v='')=>{$('#'+id).value=v};
-  if(isEdit){
-    const p=state.productos[i];
-    f('fSku',p.sku); f('fNombre',p.name); f('fEtiqueta',p.etiqueta);
-    f('fPrecio',p.price); f('fCosto',p.cost||0); f('fMin',p.stockMin||0); f('fImg',p.img||'');
-    f('fLote0'); f('fCad0'); f('fPzs0');
-  }else{ ['fSku','fNombre','fPrecio','fCosto','fImg'].forEach(id=>f(id)); f('fEtiqueta','Genérico'); f('fMin',0); f('fLote0'); f('fCad0'); f('fPzs0'); }
+  inv.editIndex=i; inv.imgData=null;
+  const isEdit=i>-1; $('#dlgProdTitle').textContent=isEdit?'Editar producto':'Nuevo producto';
+  const p=isEdit?state.productos[i]:null;
+  $('#fSku').value=p?.sku||''; $('#fNombre').value=p?.name||''; $('#fEtiqueta').value=p?.etiqueta||'Genérico';
+  $('#fPrecio').value=p?.price??''; $('#fCosto').value=p?.cost??''; $('#fMin').value=p?.stockMin??0;
+  $('#fLote0').value=''; $('#fCad0').value=''; $('#fPzs0').value='';
+  $('#fImgFile').value=''; $('#fImgPrev').src=p?.img||''; $('#fImgPrev').style.display=p?.img?'block':'none';
   $('#dlgProd').showModal();
 }
+function fileToDataURL(file){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(file); }); }
 function saveProd(){
-  const p={
+  const base={
     sku:$('#fSku').value.trim().toUpperCase(),
     name:$('#fNombre').value.trim(),
     etiqueta:$('#fEtiqueta').value,
     price:+$('#fPrecio').value,
     cost:+$('#fCosto').value||0,
     stockMin:+$('#fMin').value||0,
-    img:$('#fImg').value.trim(),
-    batches:(inv.editIndex>-1)?(state.productos[inv.editIndex].batches||[]):[]
   };
-  if(!p.sku||!p.name||!p.price){ alert('SKU, Nombre y Precio obligatorios'); return; }
+  if(!base.sku||!base.name||!base.price){ alert('SKU, Nombre y Precio obligatorios'); return; }
+
+  let prod = (inv.editIndex>-1) ? {...state.productos[inv.editIndex]} : {batches:[]};
+  Object.assign(prod, base);
+  if(inv.imgData===null && inv.editIndex>-1){ /* no cambio => mantener */ }
+  else if(inv.imgData===undefined){ prod.img=''; } // Quitar imagen
+  else { prod.img=inv.imgData||''; }
+
   const lote0=$('#fLote0').value.trim(), cad0=$('#fCad0').value||'', pzs0=+($('#fPzs0').value||0);
-  if(p.etiqueta!=='Servicio' && lote0 && pzs0>0){ p.batches.push({lote:lote0,cad:cad0,piezas:pzs0}); }
-  if(inv.editIndex>-1){ state.productos[inv.editIndex]=p; } else {
-    if(state.productos.some(x=>x.sku===p.sku)) return alert('SKU ya existe');
-    state.productos.push(p);
+  if(prod.etiqueta!=='Servicio' && lote0 && pzs0>0){ prod.batches.push({lote:lote0,cad:cad0,piezas:pzs0}); }
+
+  if(inv.editIndex>-1){ state.productos[inv.editIndex]=prod; } else {
+    if(state.productos.some(x=>x.sku===prod.sku)) return alert('SKU ya existe');
+    state.productos.push(prod);
   }
   $('#dlgProd').close(); saveState(); renderInvTable(); renderCatalogo();
 }
@@ -158,7 +164,7 @@ function importCSV(file){
     for(let i=1;i<lines.length;i++){
       const cols=lines[i].split(',').map(x=>x.trim()); if(cols.length<10) continue;
       const [sku,nombre,etiqueta,precio,costo,min,lote,cad,piezas,img]=cols;
-      let prod=out.find(p=>p.sku===sku); if(!prod){ prod={sku:sku.toUpperCase(),name:nombre,etiqueta,price:+precio,cost:+costo,stockMin:+min,img,batches:[]}; out.push(prod); }
+      let prod=out.find(p=>p.sku===sku); if(!prod){ prod={sku:sku.toUpperCase(),name:nombre,etiqueta,price:+precio,cost:+costo,stockMin:+min,img:img||'',batches:[]}; out.push(prod); }
       if(etiqueta!=='Servicio'){ prod.batches.push({lote,cad,piezas:+piezas}); }
     }
     out.forEach(n=>{ const i=state.productos.findIndex(p=>p.sku===n.sku); if(i>-1) state.productos[i]=n; else state.productos.push(n); });
@@ -170,13 +176,18 @@ function importCSV(file){
 /* ===== Ventas ===== */
 const cart={items:[],extras:[],receta:null};
 function renderCatalogo(){
-  const wrap=$('#catalogoProductos'); const tag=$('#ventaEtiqueta').value||''; const txt=($('#ventaBuscar').value||'').toLowerCase();
+  const wrap=$('#catalogoProductos'); const txt=($('#ventaBuscar').value||'').toLowerCase();
   wrap.innerHTML='';
-  state.productos.filter(p=>(!tag||p.etiqueta===tag)&&(p.name.toLowerCase().includes(txt)||p.sku.toLowerCase().includes(txt)))
+  state.productos
+    .filter(p=>{
+      const t=(p.name+' '+p.sku+' '+p.etiqueta).toLowerCase();
+      return t.includes(txt);
+    })
     .forEach(p=>{
       const card=document.createElement('div'); card.className='prod-card';
+      const bg = p.img ? `background-image:url('${p.img}');background-size:cover;background-position:center;` : '';
       card.innerHTML=`
-        <div class="prod-img" style="${p.img?`background-image:url('${p.img}');background-size:cover;background-position:center;`:''}"></div>
+        <div class="prod-img" style="${bg}"></div>
         <div class="prod-info">
           <div class="prod-name">${p.name}</div>
           <div class="prod-sku">SKU: ${p.sku}</div>
@@ -191,7 +202,7 @@ function renderCart(){
   const list=$('#carritoLista'); list.innerHTML='';
   let total=0;
   if(cart.items.length===0) list.innerHTML='<li>(Vacío)</li>';
-  cart.items.forEach(p=>{ total+=p.price*p.qty; const li=document.createElement('li'); li.innerHTML=`${p.name} x${p.qty} — ${money(p.price*p.qty)}`; const del=document.createElement('button'); del.className='btn'; del.textContent='✕'; del.onclick=()=>{removeItem(p.sku)}; li.appendChild(del); list.appendChild(li); });
+  cart.items.forEach(p=>{ total+=p.price*p.qty; const li=document.createElement('li'); li.innerHTML=`${p.name} — ${money(p.price)} x ${p.qty}`; const del=document.createElement('button'); del.className='btn'; del.textContent='✕'; del.onclick=()=>{removeItem(p.sku)}; li.appendChild(del); list.appendChild(li); });
   const exList=$('#extrasLista'); exList.innerHTML='';
   cart.extras.forEach((e,i)=>{ total+=e.amount; const li=document.createElement('li'); li.innerHTML=`${e.desc} — ${money(e.amount)}`; const del=document.createElement('button'); del.className='btn'; del.textContent='✕'; del.onclick=()=>{cart.extras.splice(i,1); renderCart();}; li.appendChild(del); exList.appendChild(li); });
   $('#total').textContent=money(total);
@@ -207,28 +218,18 @@ function cobrar(){
     const p=state.productos.find(x=>x.sku===item.sku);
     if(!p || p.etiqueta==='Servicio') return;
     let qty=item.qty;
-    (p.batches||[]).sort((a,b)=>new Date(a.cad)-new Date(b.cad)); // FEFO simple
+    (p.batches||[]).sort((a,b)=>new Date(a.cad)-new Date(b.cad)); // FEFO
     for(const b of p.batches){
       const take=Math.min(qty,b.piezas); b.piezas-=take; qty-=take; if(qty<=0) break;
     }
     p.batches=p.batches.filter(b=>b.piezas>0);
   });
-
-  // Construir venta
   const folio='F-'+uid();
   const total=parseFloat($('#total').textContent.replace(/[^0-9.]/g,''))||0;
-  const venta={
-    folio, fecha:new Date().toISOString(), cliente:'Público',
-    items:structuredClone(cart.items), extras:structuredClone(cart.extras),
-    total, pago:'EFE', receta:cart.receta?cart.receta.name||cart.receta.fileName:null, estado:'Activa'
-  };
+  const venta={folio,fecha:new Date().toISOString(),cliente:'Público',items:structuredClone(cart.items),extras:structuredClone(cart.extras),total,pago:'EFE',receta:cart.receta?cart.receta.name||cart.receta.fileName:null,estado:'Activa'};
   state.ventas.unshift(venta);
-
-  // KPIs cliente “Público General”
   const cg=state.clientes.find(c=>c.nombre==='Público General'); if(cg){ cg.compras++; cg.ultima=todayISO(); }
-
-  saveState();
-  alert(`Cobro registrado — Folio ${folio}\nTotal: ${money(total)}`);
+  saveState(); alert(`Cobro registrado — Folio ${folio}\nTotal: ${money(total)}`);
   clearCart(); renderInvTable(); renderHistorial(); renderReportes('d'); refreshKPIs();
 }
 
@@ -265,13 +266,10 @@ function renderHistorial(){
 }
 function anularVenta(folio){
   const v=state.ventas.find(x=>x.folio===folio); if(!v||v.estado!=='Activa') return;
-  // Regresar stock
   v.items.forEach(item=>{
     const p=state.productos.find(x=>x.sku===item.sku);
     if(!p||p.etiqueta==='Servicio') return;
-    // Lo devolvemos a un lote “DEV” sin caducidad
-    const lot=(p.batches||[]); lot.push({lote:'DEV-'+folio,cad:'',piezas:item.qty});
-    p.batches=lot;
+    p.batches=p.batches||[]; p.batches.push({lote:'DEV-'+folio,cad:'',piezas:item.qty});
   });
   v.estado='Anulada'; saveState(); renderInvTable(); renderHistorial(); renderReportes('d'); refreshKPIs();
 }
@@ -289,9 +287,7 @@ function renderReportes(tab){
   const set=state.ventas.filter(v=>v.fecha.slice(0,10)>=desde && v.fecha.slice(0,10)<=hasta);
   const total=set.reduce((s,v)=>s+v.total,0);
   const tickets=set.length; const tp=tickets?total/tickets:0;
-  // top productos
-  const map=new Map();
-  set.forEach(v=>v.items.forEach(i=>map.set(i.name,(map.get(i.name)||0)+i.qty)));
+  const map=new Map(); set.forEach(v=>v.items.forEach(i=>map.set(i.name,(map.get(i.name)||0)+i.qty)));
   const top=[...map.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,q])=>`${n} (${q})`).join(', ')||'—';
   $('#repResumen').textContent=`Periodo ${desde} a ${hasta} — Total: ${money(total)} | Tickets: ${tickets} | Ticket prom.: ${money(tp)} | Top: ${top}`;
 }
@@ -321,14 +317,12 @@ function importClientesCSV(file){
 }
 
 /* ===== Bodega ===== */
-// Inventario lanzará solicitudes con sku y piezas (simulado con prompt por ahora)
 function renderSolicitudes(){
   const tbody=$('#tblSolicitudes tbody'); tbody.innerHTML='';
   state.solicitudes.forEach(s=>{
     const tr=document.createElement('tr'); tr.innerHTML=`<td>${s.folio}</td><td>${s.sku}</td><td>${s.piezas}</td><td>${s.estado}</td>`; tbody.appendChild(tr);
   });
   $('#recepcionPanel').textContent='(Selecciona una solicitud)';
-  // click row
   $$('#tblSolicitudes tbody tr').forEach((tr,i)=> tr.addEventListener('click',()=>openRecepcion(state.solicitudes[i])));
 }
 function openRecepcion(sol){
@@ -346,7 +340,7 @@ function moverAInventario(sol,n){
   p.batches=p.batches||[]; p.batches.push({lote:'BOD-'+sol.folio,cad:'',piezas:n});
 }
 
-/* ===== Configuración ===== */
+/* ===== Config ===== */
 function bindTabs(scope){
   scope=scope||document;
   $$('.tab',scope).forEach(t=>t.addEventListener('click',()=>{
@@ -394,7 +388,7 @@ function initInventarioUI(){
   $('#invBuscar').oninput=renderInvTable;
   $('#invEtiqueta').onchange=renderInvTable;
   $('#fileImport').onchange=e=>{ if(e.target.files?.[0]) importCSV(e.target.files[0]); e.target.value=''; };
-  // acciones de tabla
+  // tabla
   $('#tablaInv').addEventListener('click',e=>{
     const btn=e.target.closest('button[data-act]'); if(!btn) return;
     const act=btn.dataset.act, i=+btn.dataset.i;
@@ -402,10 +396,16 @@ function initInventarioUI(){
     if(act==='stock') openStockDialog(i);
     if(act==='del') deleteProd(i);
   });
+  // imagen local
+  $('#fImgFile').onchange=async (e)=>{
+    const f=e.target.files?.[0]; if(!f){ inv.imgData=null; $('#fImgPrev').style.display='none'; return; }
+    inv.imgData = await fileToDataURL(f);
+    $('#fImgPrev').src=inv.imgData; $('#fImgPrev').style.display='block';
+  };
+  $('#fImgQuitar').onclick=()=>{ inv.imgData=undefined; $('#fImgFile').value=''; $('#fImgPrev').style.display='none'; };
 }
 function initVentasUI(){
   $('#ventaBuscar').oninput=renderCatalogo;
-  $('#ventaEtiqueta').onchange=renderCatalogo;
   const scan=$('#barcodeInput'); const focusScan=()=>{ scan.focus(); scan.select?.(); };
   $('#reactivarScanner').onclick=focusScan;
   scan.onkeydown=e=>{ if(e.key!=='Enter') return; const code=(scan.value||'').trim().toUpperCase(); scan.value=''; const p=state.productos.find(x=>x.sku===code); if(p) addItem(p.sku,p.name,p.price); else alert(`SKU no encontrado: ${code}`); };
@@ -455,8 +455,4 @@ document.addEventListener('DOMContentLoaded',()=>{
   initReportesUI(); renderReportes('d');
   initClientesUI(); renderClientes();
   initConfig();
-
-  // botones varios
-  $('#btnCancelProd')?.addEventListener('click',()=>$('#dlgProd').close());
-  $('#btnCancelStock')?.addEventListener('click',()=>$('#dlgStock').close());
 });
