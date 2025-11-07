@@ -1,23 +1,21 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Farmacia DP v1</title>
 
-  <!-- Anti-cache del CSS -->
-  <link rel="stylesheet" href="style.css?v=dp-1.5" />
-
-  <!-- Sugerencias anti-cache al navegador -->
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
+  <link rel="stylesheet" href="style.css?v=dp-1.6"/>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
 </head>
 <body>
   <!-- Sidebar -->
   <aside id="sidebar" class="sidebar">
     <div class="brand">
-      <button id="btnToggle" class="icon-btn" aria-label="Contraer/Expandir menú">☰</button>
+      <img id="brandLogo" class="brand-logo" alt="Logo"/>
+      <button id="btnToggle" class="icon-btn" aria-label="Contraer/Expandir">☰</button>
       <span class="brand-title">Farmacia DP v1</span>
     </div>
     <nav class="nav">
@@ -32,60 +30,52 @@
     </nav>
   </aside>
 
-  <!-- Contenido -->
-  <main id="content" class="content">
+  <!-- Main -->
+  <main class="content">
     <header class="topbar">
-      <button id="btnOpen" class="icon-btn show-on-mobile" aria-label="Abrir menú">☰</button>
+      <button id="btnOpen" class="icon-btn show-on-mobile">☰</button>
       <h1 id="sectionTitle">Dashboard</h1>
-      <div class="topbar-actions">
-        <input id="globalSearch" type="search" placeholder="Buscar…" />
-      </div>
+      <input id="globalSearch" type="search" placeholder="Buscar…"/>
     </header>
 
     <!-- Dashboard -->
     <section id="dashboard" class="view active">
       <div class="grid kpis">
-        <div class="card">Ventas Hoy <strong>$0.00</strong></div>
-        <div class="card">Tickets Hoy <strong>0</strong></div>
-        <div class="card">Productos vendidos <strong>0</strong></div>
-        <div class="card">Ticket promedio <strong>$0.00</strong></div>
+        <div class="card">Ventas Hoy <strong id="kpiVentasHoy">$0.00</strong></div>
+        <div class="card">Tickets Hoy <strong id="kpiTicketsHoy">0</strong></div>
+        <div class="card">Productos vendidos <strong id="kpiProdVend">0</strong></div>
+        <div class="card">Ticket promedio <strong id="kpiTicketProm">$0.00</strong></div>
       </div>
+      <div class="card" style="margin-top:12px">[Gráfica]</div>
     </section>
 
     <!-- Ventas -->
     <section id="ventas" class="view">
       <div class="ventas-wrap">
         <div class="ventas-toolbar">
-          <input type="search" id="ventaBuscar" placeholder="Buscar producto o SKU…" />
+          <input type="search" id="ventaBuscar" placeholder="Buscar producto o SKU…"/>
           <select id="ventaEtiqueta">
             <option value="">Todas las etiquetas</option>
-            <option>Genérico</option>
-            <option>Marca</option>
-            <option>Controlado</option>
-            <option>Servicio</option>
+            <option>Genérico</option><option>Marca</option><option>Controlado</option><option>Servicio</option>
           </select>
           <div class="scanner">
             <label for="barcodeInput">Escáner:</label>
-            <input id="barcodeInput" type="text" placeholder="Apunta el lector aquí…" />
+            <input id="barcodeInput" type="text" placeholder="Apunta el lector aquí…"/>
             <button id="reactivarScanner" class="btn">Reactivar</button>
           </div>
         </div>
 
-        <!-- Catálogo demo -->
-        <div class="catalogo" id="catalogoProductos">
-          <!-- Se llena desde app.js con los productos del inventario -->
-        </div>
+        <div id="catalogoProductos" class="catalogo"></div>
 
-        <!-- Carrito -->
-        <aside class="carrito" id="carritoPanel">
+        <aside id="carritoPanel" class="carrito">
           <h3>Carrito</h3>
           <ul id="carritoLista" class="list slim"><li>(Vacío)</li></ul>
 
           <div class="extras">
             <h4>Extras</h4>
             <div class="extras-row">
-              <input id="extraDesc" type="text" placeholder="Descripción (ej. Curación)" />
-              <input id="extraMonto" type="number" step="0.01" placeholder="Monto" />
+              <input id="extraDesc" type="text" placeholder="Descripción (ej. Curación)"/>
+              <input id="extraMonto" type="number" step="0.01" placeholder="Monto"/>
               <button id="btnAgregarExtra" class="btn">Agregar extra</button>
             </div>
             <ul id="extrasLista" class="list slim"></ul>
@@ -93,12 +83,11 @@
 
           <div class="receta">
             <h4>Receta del paciente</h4>
-            <input id="recetaFile" type="file" accept="image/*,.pdf" />
-            <img id="recetaPreview" class="receta-preview" alt="Vista previa receta" />
+            <input id="recetaFile" type="file" accept="image/*,.pdf"/>
+            <img id="recetaPreview" class="receta-preview" alt="Vista previa"/>
           </div>
 
           <div class="total"><span>Total:</span><strong id="total">$0.00</strong></div>
-
           <div class="cart-actions">
             <button id="btnCobrar" class="btn primary">Cobrar</button>
             <button id="btnVaciar" class="btn">Vaciar</button>
@@ -113,70 +102,191 @@
     <section id="inventario" class="view">
       <div class="inv-toolbar">
         <button id="btnNuevoProd" class="btn primary">+ Producto</button>
-        <label class="filelike">
-          <input id="fileImport" type="file" accept=".csv" hidden />
-          Importar CSV
-        </label>
-        <input id="invBuscar" class="input" placeholder="Filtrar por nombre/SKU…" />
+        <label class="filelike"><input id="fileImport" type="file" accept=".csv" hidden/>Importar CSV</label>
+        <input id="invBuscar" class="input" placeholder="Filtrar por nombre/SKU…"/>
         <select id="invEtiqueta" class="input">
           <option value="">Etiqueta (todas)</option>
           <option>Genérico</option><option>Marca</option><option>Controlado</option><option>Servicio</option>
         </select>
       </div>
-
       <div class="badges">
-        <span class="chip warn" id="badgeStock">Stock bajo: 0</span>
-        <span class="chip danger" id="badgeCad">Próximas caducidades: 0</span>
+        <span id="badgeStock" class="chip warn">Stock bajo: 0</span>
+        <span id="badgeCad" class="chip danger">Próximas caducidades: 0</span>
       </div>
-
       <div class="table-wrap">
-        <table class="table" id="tablaInv">
+        <table id="tablaInv" class="table">
           <thead>
             <tr>
-              <th>IMG</th>
-              <th>SKU</th>
-              <th>Nombre</th>
-              <th>Etiqueta</th>
-              <th>Precio</th>
-              <th>Stock</th>
-              <th>Mín</th>
-              <th>Lotes</th>
-              <th>Cad. Próx.</th>
-              <th>Acciones</th>
+              <th>IMG</th><th>SKU</th><th>Nombre</th><th>Etiqueta</th><th>Precio</th>
+              <th>Stock</th><th>Mín</th><th>Lotes</th><th>Cad. Próx.</th><th>Acciones</th>
             </tr>
           </thead>
-          <tbody><!-- filas desde JS --></tbody>
+          <tbody></tbody>
         </table>
       </div>
     </section>
 
-    <!-- Bodega / Clientes / Historial / Reportes / Config (placeholders por ahora) -->
-    <section id="bodega" class="view"><div class="card">Bodega (siguiente módulo)</div></section>
-    <section id="clientes" class="view"><div class="card">Clientes</div></section>
-    <section id="historial" class="view"><div class="card">Historial</div></section>
-    <section id="reportes" class="view"><div class="card">Reportes</div></section>
-    <section id="config" class="view"><div class="card">Configuración</div></section>
+    <!-- Bodega -->
+    <section id="bodega" class="view">
+      <div class="grid2">
+        <div class="card">
+          <h3>Solicitudes desde Inventario</h3>
+          <table class="table" id="tblSolicitudes">
+            <thead><tr><th>Folio</th><th>SKU</th><th>Piezas</th><th>Estado</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Recepción (Inventario)</h3>
+          <div id="recepcionPanel">(Selecciona una solicitud)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Clientes -->
+    <section id="clientes" class="view">
+      <div class="inv-toolbar">
+        <button id="btnNuevoCliente" class="btn primary">+ Cliente</button>
+        <label class="filelike"><input id="fileImportClientes" type="file" accept=".csv" hidden/>Importar CSV</label>
+        <input id="buscarCliente" class="input" placeholder="Buscar cliente…"/>
+      </div>
+      <div class="table-wrap">
+        <table id="tablaClientes" class="table">
+          <thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Compras</th><th>Última compra</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Historial -->
+    <section id="historial" class="view">
+      <div class="inv-toolbar">
+        <input id="fhDesde" type="date" class="input"/>
+        <span>—</span>
+        <input id="fhHasta" type="date" class="input"/>
+        <button id="btnFiltrarHist" class="btn">Filtrar</button>
+        <button id="btnExportHist" class="btn">Exportar</button>
+      </div>
+      <div class="table-wrap">
+        <table id="tablaHistorial" class="table">
+          <thead><tr><th>Folio</th><th>Fecha/Hora</th><th>Cliente</th><th>Total</th><th>Pago</th><th>Receta</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Reportes -->
+    <section id="reportes" class="view">
+      <div class="tabs">
+        <button data-tab="d" class="tab active">Diario</button>
+        <button data-tab="s" class="tab">Semanal</button>
+        <button data-tab="r" class="tab">Rango</button>
+        <button id="btnExportRep" class="btn">Exportar</button>
+      </div>
+      <div class="card">
+        <h3>Resumen</h3>
+        <div id="repResumen">—</div>
+      </div>
+    </section>
+
+    <!-- Configuración -->
+    <section id="config" class="view">
+      <div class="tabs">
+        <button class="tab active" data-tab="colores">Colores</button>
+        <button class="tab" data-tab="negocio">Datos del negocio</button>
+        <button class="tab" data-tab="ticket">Ticket 58mm</button>
+        <button class="tab" data-tab="resp">Respaldos</button>
+        <button class="tab" data-tab="web">Módulo web (próxima área)</button>
+      </div>
+
+      <div class="tabview active" data-tab="colores">
+        <div class="grid2">
+          <div class="card">
+            <h3>Colores del entorno</h3>
+            <div class="grid2">
+              <label>Menú <input type="color" id="tMenu"/></label>
+              <label>Fondo <input type="color" id="tFondo"/></label>
+              <label>Panel <input type="color" id="tPanel"/></label>
+              <label>Primario <input type="color" id="tPrim"/></label>
+              <label>Texto <input type="color" id="tText"/></label>
+            </div>
+            <div style="margin-top:10px">
+              <button id="btnGuardarTema" class="btn primary">Guardar tema</button>
+              <button id="btnResetTema" class="btn">Restablecer</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Vista previa</h3>
+            <div class="preview">
+              <div class="pv-menu">Menú</div>
+              <div class="pv-panel">Panel</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabview" data-tab="negocio">
+        <div class="grid2">
+          <div class="card">
+            <h3>Datos del negocio</h3>
+            <label>Nombre <input id="bizNombre"/></label>
+            <label>Dirección <input id="bizDir"/></label>
+            <label>Teléfono <input id="bizTel"/></label>
+            <label>E-mail <input id="bizMail"/></label>
+            <label>Logo <input id="bizLogo" type="file" accept="image/*"/></label>
+            <button id="btnGuardarBiz" class="btn primary">Guardar</button>
+          </div>
+          <div class="card">
+            <h3>Logo (vista previa)</h3>
+            <img id="bizLogoPreview" class="logo-prev" alt="Logo"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabview" data-tab="ticket">
+        <div class="card">
+          <p>El logo guardado se usa en el menú y en el ticket (auto-ajuste de tamaño).</p>
+        </div>
+      </div>
+
+      <div class="tabview" data-tab="resp">
+        <div class="card">
+          <h3>Respaldos</h3>
+          <button id="btnExportarJSON" class="btn">Exportar JSON</button>
+          <label class="filelike"><input id="fileImportJSON" type="file" accept=".json" hidden/>Importar JSON</label>
+        </div>
+      </div>
+
+      <div class="tabview" data-tab="web">
+        <div class="card">Próxima área para publicar página de venta.</div>
+      </div>
+    </section>
   </main>
 
-  <!-- Diálogos (Inventario) -->
+  <!-- Modales Inventario -->
   <dialog id="dlgProd" class="modal">
-    <form method="dialog" class="form">
+    <form method="dialog" class="form" novalidate>
       <h3 id="dlgProdTitle">Nuevo producto</h3>
       <div class="grid2">
-        <label>SKU <input id="fSku" required /></label>
-        <label>Nombre <input id="fNombre" required /></label>
+        <label>SKU <input id="fSku" required/></label>
+        <label>Nombre <input id="fNombre" required/></label>
         <label>Etiqueta
           <select id="fEtiqueta">
             <option>Genérico</option><option>Marca</option><option>Controlado</option><option>Servicio</option>
           </select>
         </label>
-        <label>Precio (venta) <input id="fPrecio" type="number" step="0.01" required /></label>
-        <label>Costo <input id="fCosto" type="number" step="0.01" /></label>
-        <label>Stock mínimo <input id="fMin" type="number" step="1" value="0" /></label>
-        <label>Imagen (URL) <input id="fImg" placeholder="https://..." /></label>
+        <label>Precio (venta) <input id="fPrecio" type="number" step="0.01" required/></label>
+        <label>Costo <input id="fCosto" type="number" step="0.01"/></label>
+        <label>Stock mínimo <input id="fMin" type="number" step="1" value="0"/></label>
+        <label>Imagen (URL) <input id="fImg" placeholder="https://..."/></label>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <label>Lote inicial (opcional) <input id="fLote0"/></label>
+        <label>Caducidad inicial <input id="fCad0" type="date"/></label>
+        <label>Piezas iniciales <input id="fPzs0" type="number" step="1" min="0"/></label>
       </div>
       <div class="modal-actions">
-        <button class="btn" value="cancel">Cancelar</button>
+        <button id="btnCancelProd" class="btn" type="button">Cancelar</button>
         <button id="btnGuardarProd" class="btn primary" value="default">Guardar</button>
       </div>
     </form>
@@ -186,18 +296,17 @@
     <form method="dialog" class="form">
       <h3>Agregar stock (lote)</h3>
       <div class="grid2">
-        <label>Lote <input id="sLote" required /></label>
-        <label>Caducidad <input id="sCad" type="date" /></label>
-        <label>Piezas <input id="sPiezas" type="number" step="1" required /></label>
+        <label>Lote <input id="sLote" required/></label>
+        <label>Caducidad <input id="sCad" type="date"/></label>
+        <label>Piezas <input id="sPiezas" type="number" step="1" required/></label>
       </div>
       <div class="modal-actions">
-        <button class="btn" value="cancel">Cancelar</button>
+        <button id="btnCancelStock" class="btn" type="button">Cancelar</button>
         <button id="btnGuardarStock" class="btn primary" value="default">Agregar</button>
       </div>
     </form>
   </dialog>
 
-  <!-- Anti-cache del JS -->
-  <script src="app.js?v=dp-1.5"></script>
+  <script src="app.js?v=dp-1.6"></script>
 </body>
 </html>
