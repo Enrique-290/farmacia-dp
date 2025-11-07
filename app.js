@@ -1,335 +1,411 @@
-/* ========== Estado global (v1 demo) ========== */
-const state = {
-  activeSection: 'dashboard',
-  config: {
-    colors: {
-      menu: '#0d6efd', fondo: '#ffffff', panel: '#ffffff',
-      primario:'#0d6efd', texto:'#111111', subtexto:'#6b7280'
-    },
-    negocio: {
-      nombre:'', dir:'', tel:'', mail:'',
-      logoDataUrl:'', ticketMsg:'Gracias por su compra'
-    }
-  },
-  cart: { items:{}, extras:[], recipe:null } // items: sku -> {name, price, qty}
-};
+/* ====== Limpieza de SW + versión de build ====== */
+(function(){
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations?.().then(list=>list.forEach(r=>r.unregister()));
+  }
+  window.__DP_BUILD = 'dp-1.5';
+  console.log('Farmacia DP build:', window.__DP_BUILD);
+})();
 
-/* Catálogo demo (hasta que conectemos inventario real) */
-const PRODUCTS = [
-  { sku:'P-001', name:'Paracetamol 500mg', price:25 },
-  { sku:'A-010', name:'Amoxicilina 500mg', price:60 },
-];
-
-const $ = (s, c=document)=>c.querySelector(s);
+/* ================== Utils ================== */
+const $  = (s, c=document)=>c.querySelector(s);
 const $$ = (s, c=document)=>Array.from(c.querySelectorAll(s));
 const money = n => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(+n||0);
+const todayISO = () => new Date().toISOString().slice(0,10);
+const addDays = (d, n)=>{ const t=new Date(d); t.setDate(t.getDate()+n); return t; };
 
-/* ====== Persistencia simple ====== */
-function saveLocal(){ localStorage.setItem('farmaciaDPv1', JSON.stringify(state)); }
-function loadLocal(){
-  const raw = localStorage.getItem('farmaciaDPv1');
-  if(!raw) return;
-  try{
-    const parsed = JSON.parse(raw);
-    if(parsed?.config) state.config = parsed.config;
-    if(parsed?.cart)   state.cart = parsed.cart;
-    if(parsed?.activeSection) state.activeSection = parsed.activeSection;
-  }catch(e){}
-}
-
-/* ====== Tema ====== */
-function applyTheme(){
-  const r = document.documentElement;
-  const c = state.config.colors;
-  r.style.setProperty('--menu-bg', c.menu);
-  r.style.setProperty('--bg', c.fondo);
-  r.style.setProperty('--panel', c.panel);
-  r.style.setProperty('--primary', c.primario);
-  r.style.setProperty('--text', c.texto);
-  r.style.setProperty('--subtext', c.subtexto);
-}
-
-/* ====== Util ====== */
-async function fileToDataURL(file, maxW=320, maxH=160){
-  return new Promise((resolve, reject)=>{
-    const fr = new FileReader();
-    fr.onload = ()=>{
-      const img = new Image();
-      img.onload = ()=>{
-        const ratio = Math.min(maxW/img.width, maxH/img.height, 1);
-        const w = Math.round(img.width*ratio), h = Math.round(img.height*ratio);
-        const canvas = document.createElement('canvas');
-        canvas.width=w; canvas.height=h;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff'; ctx.fillRect(0,0,w,h);
-        ctx.drawImage(img,0,0,w,h);
-        resolve(canvas.toDataURL('image/png'));
-      };
-      img.onerror = reject;
-      img.src = fr.result;
-    };
-    fr.onerror = reject;
-    fr.readAsDataURL(file);
-  });
-}
-
-/* ====== Navegación ====== */
+/* ================== Layout/Nav ================== */
 function setActiveSection(id){
-  state.activeSection = id; saveLocal();
   $$('.nav-link').forEach(b=> b.classList.toggle('active', b.dataset.section===id));
   $$('.view').forEach(v=> v.classList.toggle('active', v.id===id));
-  $('#sectionTitle').textContent = id.charAt(0).toUpperCase()+id.slice(1);
+  $('#sectionTitle').textContent = $('#'+id)?.id
+    ? $('#'+id).id.charAt(0).toUpperCase() + id.slice(1)
+    : 'Farmacia';
+  window.scrollTo(0,0);
 }
-function initSidebar(){
-  const sidebar = $('#sidebar');
-  $('#btnToggle').addEventListener('click', ()=> sidebar.classList.toggle('collapsed'));
-  $('#btnOpen').addEventListener('click', ()=> sidebar.classList.add('open'));
-  document.addEventListener('click', (e)=>{
-    const isSidebar = sidebar.contains(e.target) || e.target===$('#btnOpen');
-    if(!isSidebar && matchMedia('(max-width:820px)').matches) sidebar.classList.remove('open');
+function initLayout(){
+  $$('.nav-link').forEach(btn=> btn.addEventListener('click', ()=> setActiveSection(btn.dataset.section)));
+  $('#btnToggle')?.addEventListener('click', ()=> $('#sidebar').classList.toggle('collapsed'));
+  $('#btnOpen')?.addEventListener('click', ()=> $('#sidebar').classList.toggle('open'));
+}
+
+/* ================== Datos (Inventario) ================== */
+/** Cada producto:
+ * { sku, name, etiqueta, price, cost, stockMin, img, batches:[{lote,cad,piezas}] }
+ * Si etiqueta === "Servicio", no usa batches (stock = '—').
+ */
+const state = {
+  productos: [
+    {
+      sku:'P-001', name:'Paracetamol 500mg', etiqueta:'Genérico', price:25, cost:10, stockMin:5, img:'',
+      batches:[ {lote:'L-01', cad:'2026-01-20', piezas:10} ]
+    },
+    {
+      sku:'A-010', name:'Amoxicilina 500mg', etiqueta:'Marca', price:60, cost:25, stockMin:3, img:'',
+      batches:[ {lote:'AMX-01', cad:'2026-09-10', piezas:5} ]
+    },
+    { // Consulta como servicio
+      sku:'CONS-001', name:'Consulta médica', etiqueta:'Servicio', price:100, cost:0, stockMin:0, img:'',
+      batches:[]
+    }
+  ],
+  bodegaSolicitudes: [] // se llenará en el módulo de Bodega
+};
+
+const getStock = p => (p.etiqueta==='Servicio') ? '—' : (p.batches||[]).reduce((s,b)=>s+Number(b.piezas||0),0);
+
+function nextCadProxima(p){
+  if(p.etiqueta==='Servicio') return '—';
+  const futuras = (p.batches||[])
+    .filter(b=> b.cad)
+    .map(b=> ({...b, t: new Date(b.cad).getTime()}))
+    .filter(b=> b.t >= Date.now())
+    .sort((a,b)=> a.t-b.t);
+  return futuras[0]?.cad || '—';
+}
+
+/* ================== Inventario UI ================== */
+const inv = {
+  editIndex: -1, // para saber si es edición
+  stockSku: null
+};
+
+function renderInvTable(){
+  const tbody = $('#tablaInv tbody');
+  const txt = ($('#invBuscar').value||'').toLowerCase();
+  const tag = $('#invEtiqueta').value||'';
+
+  // alertas
+  let low=0, cad=0;
+  const rows = state.productos.filter(p=>{
+    const matchesText = p.name.toLowerCase().includes(txt) || p.sku.toLowerCase().includes(txt);
+    const matchesTag  = !tag || p.etiqueta===tag;
+    return matchesText && matchesTag;
   });
-  $$('.nav-link').forEach(btn=>{
+
+  tbody.innerHTML = '';
+  rows.forEach((p,i)=>{
+    const stock = getStock(p);
+    const proxCad = nextCadProxima(p);
+    const isLow = (stock!=='—' && Number(stock)<=Number(p.stockMin));
+    const soon = (proxCad!=='—' && new Date(proxCad) <= addDays(new Date(), 30));
+    if(isLow) low++;
+    if(soon) cad++;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><img class="img-thumb" src="${p.img||''}" alt="" onerror="this.style.background='#eef2ff';this.src='';" /></td>
+      <td>${p.sku}</td>
+      <td>${p.name}</td>
+      <td><span class="tag">${p.etiqueta}</span></td>
+      <td>${money(p.price)}</td>
+      <td>${stock}</td>
+      <td>${p.stockMin||0}</td>
+      <td>${p.etiqueta==='Servicio' ? '—' : (p.batches?.length||0)}</td>
+      <td>${proxCad}</td>
+      <td>
+        <button class="btn btn-sm" data-act="edit" data-i="${i}">Editar</button>
+        ${p.etiqueta!=='Servicio' ? `<button class="btn btn-sm" data-act="stock" data-i="${i}">+Stock</button>`:''}
+        <button class="btn btn-sm" data-act="del" data-i="${i}">Eliminar</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  $('#badgeStock').textContent = `Stock bajo: ${low}`;
+  $('#badgeCad').textContent   = `Próximas caducidades: ${cad}`;
+}
+
+function openProdDialog(editIndex=-1){
+  inv.editIndex = editIndex;
+  const isEdit = editIndex>-1;
+  $('#dlgProdTitle').textContent = isEdit ? 'Editar producto' : 'Nuevo producto';
+
+  if(isEdit){
+    const p = state.productos[editIndex];
+    $('#fSku').value = p.sku;
+    $('#fNombre').value = p.name;
+    $('#fEtiqueta').value = p.etiqueta;
+    $('#fPrecio').value = p.price;
+    $('#fCosto').value = p.cost||0;
+    $('#fMin').value   = p.stockMin||0;
+    $('#fImg').value   = p.img||'';
+  }else{
+    $('#fSku').value = '';
+    $('#fNombre').value = '';
+    $('#fEtiqueta').value = 'Genérico';
+    $('#fPrecio').value = '';
+    $('#fCosto').value = '';
+    $('#fMin').value   = 0;
+    $('#fImg').value   = '';
+  }
+  $('#dlgProd').showModal();
+}
+
+function saveProd(){
+  const p = {
+    sku: $('#fSku').value.trim().toUpperCase(),
+    name: $('#fNombre').value.trim(),
+    etiqueta: $('#fEtiqueta').value,
+    price: +$('#fPrecio').value,
+    cost: +$('#fCosto').value || 0,
+    stockMin: +$('#fMin').value || 0,
+    img: $('#fImg').value.trim(),
+    batches: (inv.editIndex>-1) ? (state.productos[inv.editIndex].batches||[]) : []
+  };
+  if(!p.sku || !p.name || !p.price){ alert('SKU, Nombre y Precio son obligatorios'); return; }
+
+  if(inv.editIndex>-1){
+    state.productos[inv.editIndex] = p;
+  }else{
+    // evitar duplicado
+    if(state.productos.some(x=>x.sku===p.sku)){ alert('SKU ya existe'); return; }
+    state.productos.push(p);
+  }
+  $('#dlgProd').close();
+  renderInvTable();
+  renderCatalogo();
+}
+
+function openStockDialog(i){
+  inv.stockSku = state.productos[i].sku;
+  $('#sLote').value = '';
+  $('#sCad').value  = '';
+  $('#sPiezas').value = '';
+  $('#dlgStock').showModal();
+}
+function saveStock(){
+  const lote = $('#sLote').value.trim();
+  const cad  = $('#sCad').value ? $('#sCad').value : '';
+  const piezas = +$('#sPiezas').value;
+  if(!lote || !piezas){ alert('Lote y piezas son obligatorios'); return; }
+  const p = state.productos.find(x=>x.sku===inv.stockSku);
+  p.batches = p.batches||[];
+  p.batches.push({lote, cad, piezas});
+  $('#dlgStock').close();
+  renderInvTable();
+  renderCatalogo();
+}
+
+function deleteProd(i){
+  const p = state.productos[i];
+  if(!confirm(`Eliminar ${p.name}?`)) return;
+  state.productos.splice(i,1);
+  renderInvTable();
+  renderCatalogo();
+}
+
+function importCSV(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    const lines = reader.result.split(/\r?\n/).filter(Boolean);
+    // Espera encabezados: sku,nombre,etiqueta,precio,costo,min,lote,caducidad,piezas,img
+    const out = [];
+    for(let i=1;i<lines.length;i++){
+      const cols = lines[i].split(',').map(x=>x.trim());
+      if(cols.length<10) continue;
+      const [sku,nombre,etiqueta,precio,costo,min,lote,cad,piezas,img] = cols;
+      let prod = out.find(p=>p.sku===sku);
+      if(!prod){
+        prod = { sku: sku.toUpperCase(), name:nombre, etiqueta, price:+precio, cost:+costo, stockMin:+min, img, batches:[] };
+        out.push(prod);
+      }
+      if(etiqueta!=='Servicio'){
+        prod.batches.push({ lote, cad, piezas:+piezas });
+      }
+    }
+    // Merge con existentes (por SKU)
+    out.forEach(nuevo=>{
+      const i = state.productos.findIndex(p=>p.sku===nuevo.sku);
+      if(i>-1) state.productos[i] = nuevo; else state.productos.push(nuevo);
+    });
+    renderInvTable();
+    renderCatalogo();
+    alert(`Importados: ${out.length}`);
+  };
+  reader.readAsText(file);
+}
+
+/* ================== Ventas (catálogo usa inventario) ================== */
+const cart = { items: [], extras: [] };
+
+function renderCatalogo(){
+  const wrap = $('#catalogoProductos');
+  const tag = $('#ventaEtiqueta').value||'';
+  const txt = ($('#ventaBuscar').value||'').toLowerCase();
+  wrap.innerHTML = '';
+
+  state.productos
+    .filter(p=>{
+      const matchesText = p.name.toLowerCase().includes(txt) || p.sku.toLowerCase().includes(txt);
+      const matchesTag  = !tag || p.etiqueta===tag;
+      return matchesText && matchesTag;
+    })
+    .forEach(p=>{
+      const card = document.createElement('div');
+      card.className = 'prod-card';
+      card.innerHTML = `
+        <div class="prod-img" style="${p.img?`background-image:url('${p.img}');background-size:cover;background-position:center;`:''}"></div>
+        <div class="prod-info">
+          <div class="prod-name">${p.name}</div>
+          <div class="prod-sku">SKU: ${p.sku}</div>
+          <div class="prod-meta">
+            <span>${money(p.price)}</span>
+            <span>${p.etiqueta==='Servicio' ? 'Stock: —' : 'Stock: '+getStock(p)}</span>
+          </div>
+          <button class="btn add-to-cart" data-sku="${p.sku}" data-name="${p.name}" data-price="${p.price}">Agregar</button>
+        </div>
+      `;
+      wrap.appendChild(card);
+    });
+
+  // enganchar botones
+  $$('.add-to-cart', wrap).forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      setActiveSection(btn.dataset.section);
-      if(matchMedia('(max-width:820px)').matches) sidebar.classList.remove('open');
+      addItem(btn.dataset.sku, btn.dataset.name, btn.dataset.price);
     });
   });
-}
-
-/* ====== Config ====== */
-function initConfig(){
-  const cIds = { menu:'cMenu', fondo:'cFondo', panel:'cPanel', primario:'cPrimario', texto:'cTexto', subtexto:'cSubtexto' };
-  for(const k in cIds){
-    const el = $('#'+cIds[k]);
-    if(!el) continue;
-    el.value = state.config.colors[k] || el.value;
-    el.addEventListener('input', ()=>{ state.config.colors[k]=el.value; applyTheme(); saveLocal(); });
-  }
-  $('#btnResetTema')?.addEventListener('click', ()=>{
-    state.config.colors = { menu:'#0d6efd', fondo:'#ffffff', panel:'#ffffff', primario:'#0d6efd', texto:'#111111', subtexto:'#6b7280' };
-    applyTheme();
-    for(const k in cIds) $('#'+cIds[k]).value = state.config.colors[k];
-    saveLocal();
-  });
-  $('#btnGuardarTema')?.addEventListener('click', ()=>{ saveLocal(); alert('Tema guardado'); });
-
-  // Datos negocio
-  $('#negNombre').value = state.config.negocio.nombre||'';
-  $('#negDir').value = state.config.negocio.dir||'';
-  $('#negTel').value = state.config.negocio.tel||'';
-  $('#negMail').value = state.config.negocio.mail||'';
-  if(state.config.negocio.logoDataUrl){
-    ['menuLogo','menuLogoPreview','ticketLogoPreview'].forEach(id=> $('#'+id).src = state.config.negocio.logoDataUrl);
-  }
-  $('#negLogo')?.addEventListener('change', async (e)=>{
-    const f = e.target.files?.[0]; if(!f) return;
-    const dataUrl = await fileToDataURL(f, 320, 160);
-    state.config.negocio.logoDataUrl = dataUrl;
-    ['menuLogo','menuLogoPreview','ticketLogoPreview'].forEach(id=> $('#'+id).src = dataUrl);
-    saveLocal();
-  });
-  $('#btnGuardarNeg')?.addEventListener('click', ()=>{
-    state.config.negocio.nombre = $('#negNombre').value.trim();
-    state.config.negocio.dir = $('#negDir').value.trim();
-    state.config.negocio.tel = $('#negTel').value.trim();
-    state.config.negocio.mail = $('#negMail').value.trim();
-    $('#ticketHeader').textContent =
-      `${state.config.negocio.nombre||'Nombre'} — ${state.config.negocio.dir||'Dirección'} — ${state.config.negocio.tel||'Tel'} — ${state.config.negocio.mail||'Email'}`;
-    saveLocal(); alert('Datos del negocio guardados');
-  });
-  $('#ticketMensaje').value = state.config.negocio.ticketMsg || 'Gracias por su compra';
-  $('#btnGuardarTicket')?.addEventListener('click', ()=>{
-    state.config.negocio.ticketMsg = $('#ticketMensaje').value; saveLocal(); alert('Mensaje de ticket guardado');
-  });
-
-  // Respaldos demo
-  $('#btnExportar')?.addEventListener('click', ()=>{
-    const payload = { version:'v1', fecha:new Date().toISOString(), data:{}, config:state.config };
-    const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `respaldo_farmaciaDPv1_${Date.now()}.json`;
-    a.click(); URL.revokeObjectURL(a.href);
-  });
-  $('#btnImportar')?.addEventListener('click', async ()=>{
-    const f = $('#importFile').files?.[0]; if(!f) return alert('Selecciona un archivo');
-    try{
-      const json = JSON.parse(await f.text());
-      if(json?.config){ state.config = json.config; applyTheme(); saveLocal(); alert('Respaldo importado (config).'); location.reload(); }
-      else alert('Archivo inválido');
-    }catch{ alert('No se pudo leer el respaldo'); }
-  });
-}
-
-/* ====== Carrito (demo funcional) ====== */
-function addItem(sku, name, price, qty=1){
-  const key = sku.toUpperCase();
-  if(!state.cart.items[key]) state.cart.items[key] = { sku:key, name, price:+price, qty:0 };
-  state.cart.items[key].qty += qty;
-  saveLocal(); renderCart();
-}
-function changeQty(sku, delta){
-  const it = state.cart.items[sku]; if(!it) return;
-  it.qty += delta; if(it.qty<=0) delete state.cart.items[sku];
-  saveLocal(); renderCart();
-}
-function removeItem(sku){ delete state.cart.items[sku]; saveLocal(); renderCart(); }
-
-let extraIdSeq = 1;
-function addExtra(desc, amount){
-  const val = +amount;
-  if(!desc || isNaN(val)) return;
-  state.cart.extras.push({ id: 'E'+(extraIdSeq++), desc, amount: val });
-  saveLocal(); renderCart();
-}
-function removeExtra(id){
-  state.cart.extras = state.cart.extras.filter(e=> e.id!==id);
-  saveLocal(); renderCart();
-}
-function clearCart(){
-  state.cart = { items:{}, extras:[], recipe:null };
-  saveLocal(); renderCart();
-}
-
-function cartTotal(){
-  const itemsTotal = Object.values(state.cart.items).reduce((s,i)=> s + i.price*i.qty, 0);
-  const extrasTotal = state.cart.extras.reduce((s,e)=> s + e.amount, 0);
-  return itemsTotal + extrasTotal;
 }
 
 function renderCart(){
   const list = $('#carritoLista');
   list.innerHTML = '';
-  const items = Object.values(state.cart.items);
-  if(items.length===0) list.innerHTML = '<li>(Vacío)</li>';
-  else{
-    items.forEach(it=>{
-      const li = document.createElement('li');
-      li.className = 'cart-line';
-      li.innerHTML = `
-        <span class="name">${it.name}</span>
-        <span class="price">${money(it.price*it.qty)}</span>
-        <span class="qty-controls">
-          <button class="btn icon" data-act="dec" data-sku="${it.sku}">−</button>
-          <span class="qty">${it.qty}</span>
-          <button class="btn icon" data-act="inc" data-sku="${it.sku}">+</button>
-          <button class="btn icon" data-act="del" data-sku="${it.sku}">✕</button>
-        </span>`;
-      list.appendChild(li);
-    });
-  }
+  let total = 0;
 
-  // Extras
+  if(cart.items.length===0) list.innerHTML = '<li>(Vacío)</li>';
+  cart.items.forEach(p=>{
+    total += p.price * p.qty;
+    const li = document.createElement('li');
+    li.innerHTML = `${p.name} x${p.qty} — ${money(p.price*p.qty)}`;
+    const del = document.createElement('button');
+    del.className='btn'; del.textContent='✕';
+    del.onclick = ()=>{ removeItem(p.sku); };
+    li.appendChild(del);
+    list.appendChild(li);
+  });
+
+  // extras
   const exList = $('#extrasLista');
   exList.innerHTML = '';
-  state.cart.extras.forEach(e=>{
+  cart.extras.forEach((e,i)=>{
+    total += e.amount;
     const li = document.createElement('li');
-    li.innerHTML = `<div class="extra-pill"><span>${e.desc} — ${money(e.amount)}</span> <button class="btn icon" data-xid="${e.id}">✕</button></div>`;
+    li.innerHTML = `${e.desc} — ${money(e.amount)}`;
+    const del = document.createElement('button');
+    del.className='btn'; del.textContent='✕';
+    del.onclick=()=>{ cart.extras.splice(i,1); renderCart(); };
+    li.appendChild(del);
     exList.appendChild(li);
   });
 
-  // Total
-  $('#total').textContent = money(cartTotal());
+  $('#total').textContent = money(total);
 }
 
-/* ====== Ventas UI ====== */
-function initVentasUI(){
-  // Botones Agregar
-  $$('#catalogoProductos .add-to-cart').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const sku = (btn.dataset.sku||'').toUpperCase();
-      const name = btn.dataset.name || sku;
-      const price = +btn.dataset.price || 0;
-      addItem(sku, name, price, 1);
-    });
-  });
-
-  // Carrito en móvil
-  $('#btnCarritoMovil')?.addEventListener('click', ()=> $('#carritoPanel').classList.toggle('open'));
-
-  // Extras
-  $('#btnAgregarExtra')?.addEventListener('click', ()=>{
-    addExtra($('#extraDesc').value.trim(), $('#extraMonto').value);
-    $('#extraDesc').value=''; $('#extraMonto').value='';
-  });
-  $('#extrasLista').addEventListener('click', (e)=>{
-    const id = e.target?.dataset?.xid; if(id) removeExtra(id);
-  });
-
-  // Clicks en carrito (inc/dec/del)
-  $('#carritoLista').addEventListener('click', (e)=>{
-    const sku = e.target?.dataset?.sku;
-    if(!sku) return;
-    const act = e.target.dataset.act;
-    if(act==='inc') changeQty(sku, +1);
-    if(act==='dec') changeQty(sku, -1);
-    if(act==='del') removeItem(sku);
-  });
-
-  // Vaciar
-  $('#btnVaciar')?.addEventListener('click', clearCart);
-
-  // Cobrar (demo)
-  $('#btnCobrar')?.addEventListener('click', ()=>{
-    if(Object.keys(state.cart.items).length===0 && state.cart.extras.length===0){
-      alert('Carrito vacío'); return;
-    }
-    alert(`Cobro demo — Total: ${money(cartTotal())}\n(En la siguiente etapa se guardará la venta y se imprimirá ticket)`);
-    clearCart();
-  });
-
-  // Receta preview
-  const recetaFile = $('#recetaFile'), recetaPreview = $('#recetaPreview');
-  recetaFile?.addEventListener('change', e=>{
-    const f = e.target.files?.[0]; if(!f){ recetaPreview.style.display='none'; state.cart.recipe=null; saveLocal(); return; }
-    state.cart.recipe = { name:f.name, type:f.type, size:f.size };
-    if(f.type.startsWith('image/')){
-      recetaPreview.src = URL.createObjectURL(f);
-      recetaPreview.style.display = 'block';
-    }else{
-      recetaPreview.style.display = 'none';
-    }
-    saveLocal();
-  });
-
-  // Escáner (Enter agrega por SKU)
-  const barcodeInput = $('#barcodeInput');
-  const reactivar = $('#reactivarScanner');
-  function focusScanner(){ barcodeInput.focus(); barcodeInput.select?.(); }
-  focusScanner();
-  reactivar?.addEventListener('click', focusScanner);
-  barcodeInput?.addEventListener('keydown', e=>{
-    if(e.key!=='Enter') return;
-    const code = (barcodeInput.value||'').trim().toUpperCase(); barcodeInput.value='';
-    if(!code) return;
-    const found = PRODUCTS.find(p=> p.sku.toUpperCase()===code);
-    if(found) addItem(found.sku, found.name, found.price, 1);
-    else alert(`SKU no encontrado: ${code}`);
-  });
-
-  // Render inicial por si había carrito guardado
+function addItem(sku,name,price){
+  const f = cart.items.find(p=>p.sku===sku);
+  if(f) f.qty++;
+  else cart.items.push({ sku, name, price:+price, qty:1 });
+  renderCart();
+}
+function removeItem(sku){
+  const i = cart.items.findIndex(p=>p.sku===sku);
+  if(i>-1){ cart.items.splice(i,1); renderCart(); }
+}
+function clearCart(){
+  cart.items.length = 0;
+  cart.extras.length = 0;
+  $('#extrasLista').innerHTML='';
   renderCart();
 }
 
-/* ====== Tabs ====== */
-function initTabs(){
-  const tabs = $$('.tab'), panels = $$('.tabpanel');
-  tabs.forEach(t=>{
-    t.addEventListener('click', ()=>{
-      tabs.forEach(x=>x.classList.remove('active'));
-      panels.forEach(p=>p.classList.remove('active'));
-      t.classList.add('active'); $('#tab-'+t.dataset.tab).classList.add('active');
-    });
+/* ================== Ventas: UI handlers ================== */
+function initVentas(){
+  // Filtros catálogo
+  $('#ventaBuscar')?.addEventListener('input', renderCatalogo);
+  $('#ventaEtiqueta')?.addEventListener('change', renderCatalogo);
+
+  // Escáner
+  const scan = $('#barcodeInput');
+  const focusScan = ()=>{ scan.focus(); scan.select?.(); };
+  $('#reactivarScanner')?.addEventListener('click', focusScan);
+  scan?.addEventListener('keydown', e=>{
+    if(e.key!=='Enter') return;
+    const code = (scan.value||'').trim().toUpperCase(); scan.value='';
+    const p = state.productos.find(x=>x.sku===code);
+    if(p) addItem(p.sku,p.name,p.price);
+    else alert(`SKU no encontrado: ${code}`);
   });
+  focusScan();
+
+  // Extras
+  $('#btnAgregarExtra')?.addEventListener('click', ()=>{
+    const d = $('#extraDesc').value.trim();
+    const m = parseFloat($('#extraMonto').value);
+    if(!d || isNaN(m)) return;
+    cart.extras.push({ desc:d, amount:+m });
+    $('#extraDesc').value=''; $('#extraMonto').value='';
+    renderCart();
+  });
+
+  // Receta preview
+  $('#recetaFile')?.addEventListener('change', e=>{
+    const f = e.target.files?.[0];
+    const prev = $('#recetaPreview');
+    if(!f){ prev.style.display='none'; return; }
+    if(f.type.startsWith('image/')){
+      const fr = new FileReader();
+      fr.onload = ()=>{ prev.src = fr.result; prev.style.display='block'; };
+      fr.readAsDataURL(f);
+    }else{
+      prev.style.display='none';
+    }
+  });
+
+  // Acciones
+  $('#btnVaciar')?.addEventListener('click', clearCart);
+  $('#btnCobrar')?.addEventListener('click', ()=>{
+    if(cart.items.length===0 && cart.extras.length===0) return alert('Carrito vacío');
+    alert(`Cobro demo — Total: ${$('#total').textContent}\n(En siguiente etapa: guardar venta, afectar stock y ticket)`);
+    clearCart();
+  });
+
+  // Carrito móvil
+  $('#btnCarritoMovil')?.addEventListener('click', ()=> $('#carritoPanel').classList.toggle('open'));
+
+  renderCatalogo();
+  renderCart();
 }
 
-/* ====== Inicio ====== */
-document.addEventListener('DOMContentLoaded', ()=>{
-  loadLocal(); applyTheme();
-  initSidebar(); initTabs(); initConfig(); initVentasUI();
+/* ================== Inventario: handlers ================== */
+function initInventario(){
+  $('#btnNuevoProd')?.addEventListener('click', ()=> openProdDialog(-1));
+  $('#btnGuardarProd')?.addEventListener('click', (e)=>{ e.preventDefault(); saveProd(); });
+  $('#btnGuardarStock')?.addEventListener('click', (e)=>{ e.preventDefault(); saveStock(); });
+  $('#invBuscar')?.addEventListener('input', renderInvTable);
+  $('#invEtiqueta')?.addEventListener('change', renderInvTable);
+  $('#fileImport')?.addEventListener('change', e=>{
+    if(e.target.files?.[0]) importCSV(e.target.files[0]);
+    e.target.value='';
+  });
 
-  if(state.config.negocio.logoDataUrl){
-    ['menuLogo','menuLogoPreview','ticketLogoPreview'].forEach(id=> $('#'+id).src = state.config.negocio.logoDataUrl);
-  }
-  setActiveSection(state.activeSection || 'dashboard');
+  // Acciones de la tabla (delegación)
+  $('#tablaInv').addEventListener('click', (e)=>{
+    const btn = e.target.closest('button[data-act]');
+    if(!btn) return;
+    const act = btn.dataset.act;
+    const i = +btn.dataset.i;
+    if(act==='edit') openProdDialog(i);
+    if(act==='stock') openStockDialog(i);
+    if(act==='del') deleteProd(i);
+  });
+
+  renderInvTable();
+}
+
+/* ================== Inicio ================== */
+document.addEventListener('DOMContentLoaded', ()=>{
+  initLayout();
+  initInventario();
+  initVentas();
+  setActiveSection('dashboard');
 });
