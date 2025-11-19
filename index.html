@@ -4,12 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Farmacia DP – TPV Demo</title>
-  
-  <!-- CSS Externo -->
-  <link rel="stylesheet" href="styles.css">
-  
-  <!-- Librería para exportar Excel real -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
@@ -52,7 +47,9 @@
         <div class="card">
           <div class="card-title">Dashboard</div>
           <div class="card-sub">Resumen generado a partir del historial de ventas (demo).</div>
-          <div class="dash-grid" id="dashKpis"></div>
+          <div class="dash-grid" id="dashKpis">
+            <!-- KPIs por JS -->
+          </div>
           <div class="charts-grid">
             <div class="chart-placeholder">
               <strong>Ventas últimos 7 días</strong>
@@ -82,6 +79,7 @@
         <div class="card">
           <div class="card-title">Ventas</div>
           <div class="card-sub">Busca productos, arma el carrito y genera ticket 58&nbsp;mm.</div>
+
           <div class="ventas-layout">
             <div>
               <div class="ventas-filtros">
@@ -98,6 +96,7 @@
                 No hay productos cargados. Usa <strong>Cargar demo</strong> o da de alta productos en Inventario.
               </div>
             </div>
+
             <div>
               <div class="card" style="box-shadow:none;border-radius:var(--radius-lg);border:1px solid var(--border);">
                 <div class="carrito-header">
@@ -175,7 +174,7 @@
                 </div>
               </div>
             </div>
-          </div>
+          </div><!-- ventas-layout -->
         </div>
       </section>
 
@@ -190,7 +189,7 @@
               <div class="field-label">Imagen del producto</div>
               <div id="invImagenPreview" class="producto-img" style="height:110px;margin-bottom:6px;">💊</div>
               <input type="file" id="invImagen" accept="image/*" class="input" style="padding:6px;">
-              
+
               <div class="field-label" style="margin-top:8px;">SKU</div>
               <input id="invSku" class="input">
 
@@ -255,7 +254,7 @@
               <div class="field-label">Productos</div>
               <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
                 <button class="btn btn-soft" id="btnInvCargarDemo">Cargar demo inventario</button>
-                <button class="btn btn-outline" id="btnInvExportExcel">Exportar Excel</button>
+                <button class="btn btn-outline" id="btnInvExportCsv">Exportar Excel</button>
                 <button class="btn btn-outline" id="btnInvExportPdf">Exportar PDF</button>
               </div>
               <div style="margin-top:8px;max-height:380px;overflow:auto;">
@@ -263,7 +262,7 @@
                   <thead>
                     <tr>
                       <th>Img</th>
-                      <th>SKU</th>
+                      <th>SKU</h>
                       <th>Nombre</th>
                       <th>Precio</th>
                       <th>Piso</th>
@@ -288,35 +287,68 @@
       <section class="page" id="page-bodega">
         <div class="card">
           <div class="card-title">Bodega</div>
-          <div class="card-sub">Gestiona transferencias entre bodega y piso de ventas.</div>
-          
-          <div class="grid" style="grid-template-columns:1fr 1fr; margin-top:14px; gap:16px;">
-            <!-- Solicitudes Pendientes -->
-            <div>
-              <div class="card-title" style="font-size:14px;">Solicitudes de Piso</div>
-              <div id="bodegaSolicitudes" style="margin-top:8px; font-size:13px;"></div>
-            </div>
-            
-            <!-- Historial de Transferencias -->
-            <div>
-              <div class="card-title" style="font-size:14px;">Últimas Transferencias</div>
-              <div id="bodegaHistorial" style="margin-top:8px; font-size:13px;"></div>
-            </div>
-          </div>
+          <div class="card-sub">Control de stock en bodega y surtidos hacia piso.</div>
 
-          <!-- Formulario de Transferencia Directa -->
-          <div class="card" style="margin-top:14px; background:#f8fafc;">
-            <div class="card-title" style="font-size:14px;">Nueva Transferencia</div>
-            <div class="ventas-filtros" style="margin-top:8px;">
-              <select id="bodegaProductoSelect" class="select" style="flex:1;">
-                <option value="">Selecciona producto</option>
-              </select>
-              <input id="bodegaCantidad" class="input" type="number" min="1" placeholder="Cantidad" style="width:120px;">
-              <select id="bodegaTipo" class="select" style="width:140px;">
-                <option value="piso">Bodega → Piso</option>
-                <option value="bodega">Piso → Bodega</option>
-              </select>
-              <button class="btn btn-primary" id="btnBodegaTransferir">Transferir</button>
+          <div class="grid" style="grid-template-columns:1.2fr 1.8fr;margin-top:10px;">
+            <!-- Formulario de lote y movimientos -->
+            <div>
+              <div class="field-label">Producto (SKU)</div>
+              <select id="bodSku" class="select"></select>
+
+              <div class="carrito-grid-2" style="margin-top:6px;">
+                <div>
+                  <div class="field-label">Cantidad lote</div>
+                  <input id="bodCant" class="input" type="number" min="0" step="1" value="0">
+                </div>
+                <div>
+                  <div class="field-label">Costo (opcional)</div>
+                  <input id="bodCosto" class="input" type="number" min="0" step="0.01" placeholder="Dejar en blanco = igual inventario">
+                </div>
+              </div>
+
+              <div class="carrito-grid-2" style="margin-top:6px;">
+                <div>
+                  <div class="field-label">Lote</div>
+                  <input id="bodLote" class="input">
+                </div>
+                <div>
+                  <div class="field-label">Caducidad</div>
+                  <input id="bodCaducidad" class="input" type="date">
+                </div>
+              </div>
+
+              <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;">
+                <button class="btn btn-primary" id="btnBodAgregarLote">Agregar a bodega</button>
+                <button class="btn btn-soft" id="btnBodCargarDemo">Cargar demo</button>
+              </div>
+
+              <p style="font-size:12px;color:#64748b;margin-top:8px;">
+                Desde aquí puedes <strong>sumar stock a bodega</strong> y luego surtir a piso.
+              </p>
+            </div>
+
+            <!-- Tabla de productos en bodega -->
+            <div>
+              <div class="field-label">Stock bodega vs piso</div>
+              <div style="margin-top:6px;max-height:380px;overflow:auto;">
+                <table class="inv-table">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Nombre</th>
+                      <th>Bodega</th>
+                      <th>Piso</th>
+                      <th>Lote/Cad</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tablaBodega"></tbody>
+                </table>
+              </div>
+              <p style="font-size:12px;color:#64748b;margin-top:6px;">
+                <strong>Surtir a piso:</strong> mueve piezas de bodega hacia el stock de piso.<br>
+                <strong>Regresar a bodega:</strong> devuelve piezas desde piso a bodega.
+              </p>
             </div>
           </div>
         </div>
@@ -378,7 +410,7 @@
 
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
             <button class="btn btn-soft" id="btnHistLimpiar">Limpiar filtros</button>
-            <button class="btn btn-outline" id="btnHistExportExcel">Exportar Excel</button>
+            <button class="btn btn-outline" id="btnHistExportCsv">Exportar Excel (CSV)</button>
             <button class="btn btn-outline" id="btnHistExportPdf">Exportar PDF</button>
           </div>
 
@@ -442,24 +474,6 @@
   </main>
 </div>
 
-<!-- Modal de Confirmación -->
-<div id="confirmModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header" id="modalTitle">Confirmar acción</div>
-    <div id="modalMessage">¿Estás seguro?</div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" id="modalCancel">Cancelar</button>
-      <button class="btn btn-primary" id="modalConfirm">Aceptar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Audio para feedback -->
-<audio id="audioBeep" preload="auto">
-  <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmFgU7k9n1unEiBC13yO/eizEIHWq+8+OWT" type="audio/wav">
-</audio>
-
-<!-- JavaScript Externo -->
 <script src="app.js"></script>
 </body>
 </html>
