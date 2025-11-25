@@ -35,6 +35,19 @@ function money(v){return '$'+(Number(v)||0).toFixed(2);}
 
 loadState();
 
+// Asegurar estructura de lotes en inventario
+function ensureLotesStructure() {
+  if (!Array.isArray(state.inventario)) state.inventario = [];
+  state.inventario.forEach(p => {
+    if (!Array.isArray(p.lotes)) p.lotes = [];
+    // Normalizar campos numéricos
+    p.stockPiso = Number(p.stockPiso ?? p.stock ?? 0) || 0;
+    p.stockBodega = Number(p.stockBodega ?? 0) || 0;
+    p.stockMin = Number(p.stockMin ?? 0) || 0;
+  });
+}
+ensureLotesStructure();
+
 // ---------------------------
 // Navegación SPA
 // ---------------------------
@@ -111,33 +124,34 @@ function ensureDemoInventory(){
       {
         id:'PARA-500', sku:'PARA-500', nombre:'Paracetamol 500 mg',
         precio:95, costo:60,
-        stockPiso:10, stockBodega:20, stockMin:3,
+        stockPiso:10, stockBodega:0, stockMin:3,
         caducidad:'', lote:'L-001', categoria:'Genérico',
-        imagen:null
+        imagen:null, lotes:[]
       },
       {
         id:'IBU-400', sku:'IBU-400', nombre:'Ibuprofeno 400 mg',
         precio:120, costo:70,
-        stockPiso:8, stockBodega:15, stockMin:3,
+        stockPiso:8, stockBodega:0, stockMin:3,
         caducidad:'', lote:'L-002', categoria:'Genérico',
-        imagen:null
+        imagen:null, lotes:[]
       },
       {
         id:'AMOX-500', sku:'AMOX-500', nombre:'Amoxicilina 500 mg',
         precio:180, costo:100,
-        stockPiso:6, stockBodega:10, stockMin:2,
+        stockPiso:6, stockBodega:0, stockMin:2,
         caducidad:'', lote:'L-003', categoria:'Original',
-        imagen:null
+        imagen:null, lotes:[]
       },
       {
         id:'CONS-001', sku:'CONS-001', nombre:'Consulta médica',
         precio:100, costo:0,
         stockPiso:999, stockBodega:0, stockMin:0,
         caducidad:'', lote:'SERV', categoria:'Servicio',
-        imagen:null
+        imagen:null, lotes:[]
       },
     ];
     saveState();
+    ensureLotesStructure();
     renderInventario();
   }
 }
@@ -434,6 +448,7 @@ elBtnCobrar.addEventListener('click',()=>{
   renderHistorial();
   renderReportes();
   renderInventario();
+  renderBodega();
 });
 
 // ---------------------------
@@ -556,7 +571,8 @@ elBtnInvGuardar.addEventListener('click',()=>{
       lote,
       caducidad,
       categoria,
-      imagen: invImagenData || null
+      imagen: invImagenData || null,
+      lotes: []
     };
     state.inventario.push(nuevo);
   }else{
@@ -579,21 +595,26 @@ elBtnInvGuardar.addEventListener('click',()=>{
     prod.lote = lote;
     prod.caducidad = caducidad;
     prod.categoria = categoria;
+    if(!Array.isArray(prod.lotes)) prod.lotes = [];
     if(invImagenData!==null){
       prod.imagen = invImagenData;
     }
   }
+  ensureLotesStructure();
   saveState();
   clearInvForm();
   renderInventario();
   renderCatalog(currentFilter);
+  renderBodega();
   alert('Producto guardado.');
 });
 
 elBtnInvCargarDemo.addEventListener('click',()=>{
   ensureDemoInventory();
+  ensureLotesStructure();
   renderInventario();
   renderCatalog(currentFilter);
+  renderBodega();
   alert('Inventario demo cargado.');
 });
 
@@ -683,6 +704,7 @@ elBtnInvExportCsv.addEventListener('click',exportInventarioCsv);
 elBtnInvExportPdf.addEventListener('click',exportInventarioPdf);
 
 function renderInventario(){
+  ensureLotesStructure();
   fillCategoriasSelect();
   elTablaInventario.innerHTML='';
   if(!state.inventario.length){
@@ -760,6 +782,14 @@ function renderInventario(){
       }
       if(!isNaN(addBod)&&addBod>0){
         p.stockBodega = (p.stockBodega ?? 0) + addBod;
+        if(!Array.isArray(p.lotes)) p.lotes = [];
+        // lote rápido sin datos
+        p.lotes.push({
+          id: 'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+          lote: 'SIN-LOTE',
+          caducidad: '',
+          cantidad: addBod
+        });
       }
       saveState();
       renderInventario();
@@ -790,159 +820,6 @@ function renderInventario(){
     tr.appendChild(tdAcc);
 
     elTablaInventario.appendChild(tr);
-  });
-}
-
-// ---------------------------
-// BODEGA
-// ---------------------------
-const elBodSku = document.getElementById('bodSku');
-const elBodCant = document.getElementById('bodCant');
-const elBodCosto = document.getElementById('bodCosto');
-const elBodLote = document.getElementById('bodLote');
-const elBodCaducidad = document.getElementById('bodCaducidad');
-const elBtnBodAgregarLote = document.getElementById('btnBodAgregarLote');
-const elBtnBodCargarDemo = document.getElementById('btnBodCargarDemo');
-const elTablaBodega = document.getElementById('tablaBodega');
-
-function fillBodegaSelect(){
-  if(!elBodSku) return;
-  elBodSku.innerHTML='';
-  const opt0 = document.createElement('option');
-  opt0.value='';opt0.textContent='Selecciona producto';
-  elBodSku.appendChild(opt0);
-  state.inventario.forEach(p=>{
-    const opt = document.createElement('option');
-    opt.value=p.id;
-    opt.textContent=`${p.sku} · ${p.nombre}`;
-    elBodSku.appendChild(opt);
-  });
-}
-
-function renderBodega(){
-  fillBodegaSelect();
-  if(!elTablaBodega){return;}
-  elTablaBodega.innerHTML='';
-  if(!state.inventario.length){
-    const tr=document.createElement('tr');
-    const td=document.createElement('td');
-    td.colSpan=6;td.style.textAlign='center';td.style.color='#9ca3af';
-    td.textContent='Sin productos. Usa "Cargar demo" o agrega inventario.';
-    tr.appendChild(td);elTablaBodega.appendChild(tr);
-    return;
-  }
-  state.inventario.forEach(p=>{
-    const tr=document.createElement('tr');
-    const stockPiso = p.stockPiso ?? p.stock ?? 0;
-    const stockBod = p.stockBodega ?? 0;
-    const lote = p.lote || '';
-    const cad = p.caducidad || '';
-
-    const tdSku=document.createElement('td');tdSku.textContent=p.sku||'';
-    const tdNom=document.createElement('td');tdNom.textContent=p.nombre||'';
-    const tdBod=document.createElement('td');tdBod.textContent=stockBod;
-    const tdPiso=document.createElement('td');tdPiso.textContent=stockPiso;
-    const tdLC=document.createElement('td');tdLC.textContent=`${lote}${cad?(' · '+cad):''}`;
-
-    const tdAcc=document.createElement('td');
-    tdAcc.style.whiteSpace='nowrap';
-    const btnToPiso=document.createElement('button');
-    btnToPiso.className='qty-btn';
-    btnToPiso.textContent='⇩';
-    btnToPiso.title='Surtir a piso';
-    btnToPiso.dataset.action='toPiso';
-    btnToPiso.dataset.id=p.id;
-
-    const btnToBod=document.createElement('button');
-    btnToBod.className='qty-btn';
-    btnToBod.textContent='⇧';
-    btnToBod.title='Regresar a bodega';
-    btnToBod.dataset.action='toBodega';
-    btnToBod.dataset.id=p.id;
-
-    tdAcc.appendChild(btnToPiso);
-    tdAcc.appendChild(btnToBod);
-
-    tr.appendChild(tdSku);
-    tr.appendChild(tdNom);
-    tr.appendChild(tdBod);
-    tr.appendChild(tdPiso);
-    tr.appendChild(tdLC);
-    tr.appendChild(tdAcc);
-    elTablaBodega.appendChild(tr);
-  });
-}
-
-if(elTablaBodega){
-  elTablaBodega.addEventListener('click',e=>{
-    const btn = e.target.closest('button[data-action]');
-    if(!btn) return;
-    const id = btn.dataset.id;
-    const action = btn.dataset.action;
-    const prod = state.inventario.find(p=>p.id===id);
-    if(!prod) return;
-
-    if(action==='toPiso'){
-      const max = prod.stockBodega ?? 0;
-      if(max<=0){alert('No hay stock en bodega para este producto.');return;}
-      const cant = Number(prompt(`¿Cuántas piezas mover de BODEGA a PISO? (max ${max})`,'0')||'0');
-      if(isNaN(cant) || cant<=0) return;
-      if(cant>max){alert('No puedes mover más de lo que hay en bodega.');return;}
-      prod.stockBodega = max - cant;
-      prod.stockPiso = (prod.stockPiso ?? prod.stock ?? 0) + cant;
-    }else if(action==='toBodega'){
-      const maxPiso = prod.stockPiso ?? prod.stock ?? 0;
-      if(maxPiso<=0){alert('No hay stock en piso para devolver.');return;}
-      const cant = Number(prompt(`¿Cuántas piezas mover de PISO a BODEGA? (max ${maxPiso})`,'0')||'0');
-      if(isNaN(cant) || cant<=0) return;
-      if(cant>maxPiso){alert('No puedes mover más de lo que hay en piso.');return;}
-      prod.stockPiso = maxPiso - cant;
-      prod.stockBodega = (prod.stockBodega ?? 0) + cant;
-    }
-    saveState();
-    renderInventario();
-    renderBodega();
-    renderCatalog(currentFilter);
-  });
-}
-
-if(elBtnBodAgregarLote){
-  elBtnBodAgregarLote.addEventListener('click',()=>{
-    const id = elBodSku.value;
-    const cant = Number(elBodCant.value)||0;
-    if(!id){alert('Selecciona un producto.');return;}
-    if(cant<=0){alert('Cantidad debe ser mayor a 0.');return;}
-    const prod = state.inventario.find(p=>p.id===id);
-    if(!prod){alert('Producto no encontrado.');return;}
-    prod.stockBodega = (prod.stockBodega ?? 0) + cant;
-
-    const costoNuevo = Number(elBodCosto.value);
-    if(!isNaN(costoNuevo) && costoNuevo>0){
-      prod.costo = costoNuevo;
-    }
-    const lote = elBodLote.value.trim();
-    const cad = elBodCaducidad.value;
-    if(lote) prod.lote = lote;
-    if(cad) prod.caducidad = cad;
-
-    saveState();
-    elBodCant.value='0';
-    elBodCosto.value='';
-    elBodLote.value='';
-    elBodCaducidad.value='';
-    renderInventario();
-    renderBodega();
-    alert('Lote agregado a bodega.');
-  });
-}
-
-if(elBtnBodCargarDemo){
-  elBtnBodCargarDemo.addEventListener('click',()=>{
-    ensureDemoInventory();
-    renderInventario();
-    renderBodega();
-    renderCatalog(currentFilter);
-    alert('Inventario demo cargado en bodega.');
   });
 }
 
@@ -999,7 +876,7 @@ elBtnAgregarCliente.addEventListener('click',()=>{
 });
 
 // ---------------------------
-// HISTORIAL
+// HISTORIAL (AVANZADO)
 // ---------------------------
 const elHistDesde   = document.getElementById('histDesde');
 const elHistHasta   = document.getElementById('histHasta');
@@ -1181,189 +1058,933 @@ elBtnHistExportCsv.addEventListener('click',exportHistorialCsv);
 elBtnHistExportPdf.addEventListener('click',exportHistorialPdf);
 
 // ---------------------------
-// REPORTES simples
+// BODEGA – LOTES Y CADUCIDADES
 // ---------------------------
-const elReportesResumen = document.getElementById('reportesResumen');
-function renderReportes(){
-  const hoy = new Date().toISOString().slice(0,10);
-  const ventasHoy = state.ventas.filter(v=>v.fechaISO.slice(0,10)===hoy);
-  const totalHoy = ventasHoy.reduce((a,v)=>a+v.total,0);
-  const ticketsHoy = ventasHoy.length;
-  const ivaHoy = ventasHoy.reduce((a,v)=>a+v.ivaMonto,0);
-  const descuentosHoy = ventasHoy.reduce((a,v)=>a+v.descMonto,0);
-  const totalGeneral = state.ventas.reduce((a,v)=>a+v.total,0);
-  const ticketsGeneral = state.ventas.length;
-  elReportesResumen.innerHTML = `
-    <p><strong>Hoy:</strong> ${money(totalHoy)} en ${ticketsHoy} tickets.</p>
-    <p>IVA hoy: ${money(ivaHoy)} · Descuentos hoy: ${money(descuentosHoy)}</p>
-    <p style="margin-top:6px;"><strong>Histórico:</strong> ${money(totalGeneral)} en ${ticketsGeneral} tickets.</p>
-  `;
+const CADUCIDAD_ALERT_DAYS = 30;
+let bodegaFilter = { search:'', onlySoon:false };
+let bodegaUiInitialized = false;
+
+function getAllLotesBodega(){
+  ensureLotesStructure();
+  const list = [];
+  state.inventario.forEach(p=>{
+    const totalBod = Number(p.stockBodega || 0);
+    if(Array.isArray(p.lotes) && p.lotes.length){
+      p.lotes.forEach(l=>{
+        list.push({
+          prodId: p.id,
+          sku: p.sku,
+          nombre: p.nombre,
+          id: l.id,
+          lote: l.lote || '',
+          caducidad: l.caducidad || '',
+          cantidad: Number(l.cantidad || 0) || 0,
+          esLegacy: false
+        });
+      });
+    }else if(totalBod>0){
+      list.push({
+        prodId: p.id,
+        sku: p.sku,
+        nombre: p.nombre,
+        id: 'legacy-'+p.id,
+        lote: 'SIN-LOTE',
+        caducidad: '',
+        cantidad: totalBod,
+        esLegacy: true
+      });
+    }
+  });
+  return list;
 }
 
+function getLoteStatus(cadStr){
+  if(!cadStr){
+    return {status:'sinfecha', label:'Sin fecha', bg:'#f3f4f6', fg:'#111827', icon:'•'};
+  }
+  const hoy = new Date();
+  const cad = new Date(cadStr+'T00:00:00');
+  const diffMs = cad - hoy;
+  const diffD = Math.floor(diffMs/ (1000*60*60*24));
+  if(diffD < 0){
+    return {status:'expired', label:'Caducado', bg:'#fee2e2', fg:'#b91c1c', icon:'⛔'};
+  }
+  if(diffD <= CADUCIDAD_ALERT_DAYS){
+    return {status:'alert', label:`Por caducar (${diffD} d)`, bg:'#fef3c7', fg:'#92400e', icon:'⚠️'};
+  }
+  return {status:'ok', label:`OK (${diffD} d)`, bg:'#dcfce7', fg:'#166534', icon:'✅'};
+}
+
+function recalcStockBodegaProd(prod){
+  if(!Array.isArray(prod.lotes) || !prod.lotes.length){
+    // si no hay lotes, stockBodega queda como está (legacy)
+    return;
+  }
+  prod.stockBodega = prod.lotes.reduce((a,l)=>a + (Number(l.cantidad || 0)||0), 0);
+}
+
+function initBodegaUI(){
+  if(bodegaUiInitialized) return;
+  const pageBodega = document.getElementById('page-bodega');
+  pageBodega.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="card-title">Bodega</div>
+    <div class="card-sub">Control de lotes, caducidades y surtidos a piso.</div>
+
+    <div class="ventas-filtros" style="margin-top:10px;">
+      <input id="bodegaSearch" class="input" placeholder="🔍 Buscar por nombre o SKU">
+      <button class="btn btn-soft" id="bodegaBtnVerTodo">Ver todo</button>
+      <button class="btn btn-outline" id="bodegaBtnPorCaducar">Por caducar</button>
+      <button class="btn btn-outline" id="bodegaBtnExportCsv">Excel</button>
+      <button class="btn btn-outline" id="bodegaBtnExportPdf">PDF</button>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1.1fr 1.9fr;margin-top:10px;">
+      <div>
+        <div class="field-label">Agregar lote a bodega</div>
+        <div class="field-label" style="margin-top:6px;">Producto</div>
+        <select id="bodegaProdSelect" class="select"></select>
+        <div class="field-label" style="margin-top:6px;">Lote</div>
+        <input id="bodegaLote" class="input">
+        <div class="field-label" style="margin-top:6px;">Caducidad</div>
+        <input id="bodegaCad" type="date" class="input">
+        <div class="field-label" style="margin-top:6px;">Cantidad</div>
+        <input id="bodegaCant" type="number" min="1" class="input">
+        <button class="btn btn-primary" style="margin-top:8px;" id="bodegaBtnAgregar">Guardar lote</button>
+      </div>
+      <div>
+        <div class="field-label">Lotes en bodega</div>
+        <div style="margin-top:6px;max-height:380px;overflow:auto;">
+          <table class="inv-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Producto</th>
+                <th>Lote</th>
+                <th>Caducidad</th>
+                <th>Cant</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="bodegaTabla"></tbody>
+          </table>
+        </div>
+        <p id="bodegaResumen" style="font-size:12px;color:#64748b;margin-top:6px;"></p>
+      </div>
+    </div>
+  `;
+  pageBodega.appendChild(card);
+
+  // Referencias y eventos
+  const inputSearch = document.getElementById('bodegaSearch');
+  const btnVerTodo = document.getElementById('bodegaBtnVerTodo');
+  const btnPorCad = document.getElementById('bodegaBtnPorCaducar');
+  const btnCsv = document.getElementById('bodegaBtnExportCsv');
+  const btnPdf = document.getElementById('bodegaBtnExportPdf');
+  const selProd = document.getElementById('bodegaProdSelect');
+  const inpLote = document.getElementById('bodegaLote');
+  const inpCad = document.getElementById('bodegaCad');
+  const inpCant = document.getElementById('bodegaCant');
+  const btnAgregar = document.getElementById('bodegaBtnAgregar');
+
+  inputSearch.addEventListener('input',()=>{
+    bodegaFilter.search = inputSearch.value;
+    renderBodegaTabla();
+  });
+  btnVerTodo.addEventListener('click',()=>{
+    bodegaFilter.onlySoon = false;
+    renderBodegaTabla();
+  });
+  btnPorCad.addEventListener('click',()=>{
+    bodegaFilter.onlySoon = true;
+    renderBodegaTabla();
+  });
+  btnCsv.addEventListener('click',exportBodegaCsv);
+  btnPdf.addEventListener('click',exportBodegaPdf);
+
+  btnAgregar.addEventListener('click',()=>{
+    const prodId = selProd.value;
+    const lote = inpLote.value.trim() || 'SIN-LOTE';
+    const cad = inpCad.value;
+    const cant = Number(inpCant.value)||0;
+    if(!prodId){alert('Selecciona un producto.');return;}
+    if(cant<=0){alert('Cantidad debe ser mayor a 0.');return;}
+    const prod = state.inventario.find(p=>p.id===prodId);
+    if(!prod){alert('Producto no encontrado.');return;}
+    if(!Array.isArray(prod.lotes)) prod.lotes = [];
+    const idLote = 'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    prod.lotes.push({
+      id:idLote,
+      lote,
+      caducidad:cad,
+      cantidad:cant
+    });
+    prod.stockBodega = Number(prod.stockBodega||0) + cant;
+    saveState();
+    renderInventario();
+    renderBodegaTabla();
+    inpLote.value='';
+    inpCad.value='';
+    inpCant.value='';
+    alert('Lote agregado a bodega.');
+  });
+
+  bodegaUiInitialized = true;
+}
+
+// Rellena el select de producto en bodega
+function fillBodegaProductos(){
+  const selProd = document.getElementById('bodegaProdSelect');
+  if(!selProd) return;
+  selProd.innerHTML='';
+  const opt = document.createElement('option');
+  opt.value='';opt.textContent='Selecciona producto';
+  selProd.appendChild(opt);
+  state.inventario.forEach(p=>{
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = `${p.sku} · ${p.nombre}`;
+    selProd.appendChild(o);
+  });
+}
+
+function surtirDesdeLote(loteId, cantidad){
+  ensureLotesStructure();
+  for(const p of state.inventario){
+    // buscar en lotes "normales"
+    if(Array.isArray(p.lotes)){
+      const l = p.lotes.find(lo=>lo.id===loteId);
+      if(l){
+        const max = Number(l.cantidad||0);
+        const qty = Math.min(cantidad, max);
+        l.cantidad = max - qty;
+        if(l.cantidad<=0){
+          p.lotes = p.lotes.filter(lo=>lo.id!==loteId);
+        }
+        p.stockBodega = Math.max(0, Number(p.stockBodega||0) - qty);
+        p.stockPiso = Number(p.stockPiso||0) + qty;
+        saveState();
+        renderInventario();
+        renderBodegaTabla();
+        return;
+      }
+    }
+    // legacy
+    if(('legacy-'+p.id)===loteId){
+      const max = Number(p.stockBodega||0);
+      const qty = Math.min(cantidad, max);
+      p.stockBodega = max - qty;
+      p.stockPiso = Number(p.stockPiso||0) + qty;
+      saveState();
+      renderInventario();
+      renderBodegaTabla();
+      return;
+    }
+  }
+}
+
+function borrarLote(loteId){
+  ensureLotesStructure();
+  for(const p of state.inventario){
+    if(Array.isArray(p.lotes)){
+      const l = p.lotes.find(lo=>lo.id===loteId);
+      if(l){
+        const cant = Number(l.cantidad||0);
+        p.lotes = p.lotes.filter(lo=>lo.id!==loteId);
+        p.stockBodega = Math.max(0, Number(p.stockBodega||0) - cant);
+        saveState();
+        renderInventario();
+        renderBodegaTabla();
+        return;
+      }
+    }
+    if(('legacy-'+p.id)===loteId){
+      if(!confirm('Este lote representa todo el stock de bodega sin lote. ¿Borrar todo ese stock?')) return;
+      p.stockBodega = 0;
+      saveState();
+      renderInventario();
+      renderBodegaTabla();
+      return;
+    }
+  }
+}
+
+function renderBodegaTabla(){
+  const tbody = document.getElementById('bodegaTabla');
+  const resumen = document.getElementById('bodegaResumen');
+  if(!tbody || !resumen) return;
+  let lotes = getAllLotesBodega();
+  const q = bodegaFilter.search.trim().toLowerCase();
+  if(q){
+    lotes = lotes.filter(l =>
+      (l.nombre||'').toLowerCase().includes(q) ||
+      (l.sku||'').toLowerCase().includes(q)
+    );
+  }
+  // filtrar por caducidad
+  if(bodegaFilter.onlySoon){
+    lotes = lotes.filter(l=>{
+      const info = getLoteStatus(l.caducidad);
+      return info.status==='alert' || info.status==='expired';
+    });
+  }
+
+  // ordenar por fecha cercana
+  lotes.sort((a,b)=>{
+    const ca = a.caducidad || '9999-12-31';
+    const cb = b.caducidad || '9999-12-31';
+    if(ca<cb) return -1;
+    if(ca>cb) return 1;
+    return 0;
+  });
+
+  tbody.innerHTML='';
+  if(!lotes.length){
+    const tr=document.createElement('tr');
+    const td=document.createElement('td');
+    td.colSpan=7;td.style.textAlign='center';td.style.color='#9ca3af';
+    td.textContent='Sin lotes en bodega para los filtros seleccionados.';
+    tr.appendChild(td);tbody.appendChild(tr);
+    resumen.textContent='';
+    return;
+  }
+
+  let totalPzas = 0;
+  lotes.forEach(l=>{
+    totalPzas += l.cantidad;
+    const info = getLoteStatus(l.caducidad);
+    const tr=document.createElement('tr');
+    tr.style.backgroundColor = info.bg;
+    tr.style.color = info.fg;
+
+    const tdSku=document.createElement('td');tdSku.textContent=l.sku;
+    const tdNom=document.createElement('td');tdNom.textContent=l.nombre;
+    const tdLote=document.createElement('td');tdLote.textContent=l.lote || 'SIN-LOTE';
+    const tdCad=document.createElement('td');tdCad.textContent=l.caducidad || '-';
+    const tdCant=document.createElement('td');tdCant.textContent=l.cantidad;
+    const tdEst=document.createElement('td');tdEst.textContent=`${info.icon} ${info.label}`;
+    const tdAcc=document.createElement('td');tdAcc.style.whiteSpace='nowrap';
+
+    const btnSurtir=document.createElement('button');
+    btnSurtir.className='qty-btn';
+    btnSurtir.textContent='↗';
+    btnSurtir.title='Surtir a piso';
+    btnSurtir.addEventListener('click',()=>{
+      const max = l.cantidad;
+      const resp = prompt(`¿Cuántas piezas surtir a piso? (máx ${max})`, String(max));
+      const qty = Number(resp||'0');
+      if(!qty || qty<=0) return;
+      if(qty>max){alert('No puedes surtir más de lo que hay en el lote.');return;}
+      surtirDesdeLote(l.id, qty);
+    });
+
+    const btnDel=document.createElement('button');
+    btnDel.className='qty-btn';
+    btnDel.style.background='#fee2e2';
+    btnDel.textContent='🗑';
+    btnDel.title='Borrar lote';
+    btnDel.addEventListener('click',()=>{
+      if(!confirm('¿Borrar este lote de bodega?')) return;
+      borrarLote(l.id);
+    });
+
+    tdAcc.appendChild(btnSurtir);
+    tdAcc.appendChild(btnDel);
+
+    tr.appendChild(tdSku);
+    tr.appendChild(tdNom);
+    tr.appendChild(tdLote);
+    tr.appendChild(tdCad);
+    tr.appendChild(tdCant);
+    tr.appendChild(tdEst);
+    tr.appendChild(tdAcc);
+    tbody.appendChild(tr);
+  });
+
+  resumen.textContent = `Lotes mostrados: ${lotes.length} · Piezas totales en bodega (en estos lotes): ${totalPzas}`;
+}
+
+function exportBodegaCsv(){
+  const lotes = getAllLotesBodega();
+  if(!lotes.length){
+    alert('No hay lotes en bodega para exportar.');
+    return;
+  }
+  const header = ['SKU','Nombre','Lote','Caducidad','Cantidad','Estado'];
+  const rows = lotes.map(l=>{
+    const info = getLoteStatus(l.caducidad);
+    return [
+      l.sku,
+      l.nombre,
+      l.lote || 'SIN-LOTE',
+      l.caducidad || '',
+      l.cantidad,
+      info.label
+    ];
+  });
+  const csvLines = [
+    header.join(','),
+    ...rows.map(r=>r.map(v=>{
+      const s = String(v ?? '');
+      return '"'+s.replace(/"/g,'""')+'"';
+    }).join(','))
+  ];
+  const blob = new Blob([csvLines.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'bodega_lotes_farmacia_dp.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportBodegaPdf(){
+  const lotes = getAllLotesBodega();
+  if(!lotes.length){
+    alert('No hay lotes en bodega para exportar.');
+    return;
+  }
+  let html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Control de caducidades - Bodega</title>
+<style>
+@page { size: A4; margin: 15mm; }
+body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:11px;color:#111827;margin:0;padding:0;}
+h1{font-size:16px;margin-bottom:8px;}
+table{width:100%;border-collapse:collapse;font-size:10px;}
+th,td{border:1px solid #e5e7eb;padding:4px 6px;text-align:left;}
+th{background:#f3f4f6;}
+tr:nth-child(even){background:#f9fafb;}
+</style>
+</head><body>
+<h1>Control de caducidades - ${state.config.negocio||'Farmacia DP'}</h1>
+<table><thead><tr>
+<th>SKU</th><th>Producto</th><th>Lote</th><th>Caducidad</th><th>Cantidad</th><th>Estado</th>
+</tr></thead><tbody>`;
+  lotes.forEach(l=>{
+    const info = getLoteStatus(l.caducidad);
+    html += `<tr>
+<td>${l.sku}</td>
+<td>${l.nombre}</td>
+<td>${l.lote||'SIN-LOTE'}</td>
+<td>${l.caducidad||''}</td>
+<td>${l.cantidad}</td>
+<td>${info.label}</td>
+</tr>`;
+  });
+  html += `</tbody></table>
+<script>
+window.onload = function(){ window.print(); setTimeout(function(){ window.close(); }, 600); };
+<\/script>
+</body></html>`;
+  const w = window.open('','bodega','width=900,height=700');
+  if(!w){alert('No se pudo abrir ventana para PDF.');return;}
+  w.document.open();w.document.write(html);w.document.close();
+}
+
+function renderBodega(){
+  ensureLotesStructure();
+  initBodegaUI();
+  fillBodegaProductos();
+  renderBodegaTabla();
+}
+
+  // ---------------------------
+  // REPORTES avanzados
+  // ---------------------------
+  const elReportesResumen = document.getElementById('reportesResumen');
+  const elRepDesde       = document.getElementById('repDesde');
+  const elRepHasta       = document.getElementById('repHasta');
+  const elRepFormaPago   = document.getElementById('repFormaPago');
+  const elRepChartDias   = document.getElementById('repChartDias');
+  const elRepChartPagos  = document.getElementById('repChartPagos');
+  const elRepLegendPagos = document.getElementById('repLegendPagos');
+  const elRepTopProductos = document.getElementById('repTopProductos');
+  const btnRepHoy        = document.getElementById('btnRepHoy');
+  const btnRepMes        = document.getElementById('btnRepMes');
+  const btnRepTodo       = document.getElementById('btnRepTodo');
+
+  // Filtro base de reportes (se apoya en state.ventas)
+  function getVentasPeriodo() {
+    let arr = state.ventas.slice();
+
+    const dDesde = elRepDesde.value;
+    const dHasta = elRepHasta.value;
+    const forma  = elRepFormaPago.value;
+
+    if (dDesde) {
+      arr = arr.filter(v => v.fechaISO.slice(0, 10) >= dDesde);
+    }
+    if (dHasta) {
+      arr = arr.filter(v => v.fechaISO.slice(0, 10) <= dHasta);
+    }
+    if (forma) {
+      arr = arr.filter(v => v.formaPago === forma);
+    }
+    return arr;
+  }
+
+  function renderReportes() {
+    const ventas = getVentasPeriodo();
+    const total = ventas.reduce((a, v) => a + v.total, 0);
+    const tickets = ventas.length;
+    const iva = ventas.reduce((a, v) => a + (v.ivaMonto || 0), 0);
+    const descuentos = ventas.reduce((a, v) => a + (v.descMonto || 0), 0);
+    const promedio = tickets ? total / tickets : 0;
+
+    const totalHistorico = state.ventas.reduce((a, v) => a + v.total, 0);
+    const ticketsHistorico = state.ventas.length;
+
+    // KPIs en el contenedor reportesResumen (reutilizamos estilos de dashboard)
+    elReportesResumen.innerHTML = `
+      <div class="dash-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total periodo</div>
+          <div class="kpi-value">${money(total)}</div>
+          <div class="kpi-extra">${tickets} tickets</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ticket promedio</div>
+          <div class="kpi-value">${money(promedio)}</div>
+          <div class="kpi-extra">Con base en el filtro actual</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">IVA en periodo</div>
+          <div class="kpi-value">${money(iva)}</div>
+          <div class="kpi-extra">Descuentos: ${money(descuentos)}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Histórico general</div>
+          <div class="kpi-value">${money(totalHistorico)}</div>
+          <div class="kpi-extra">${ticketsHistorico} tickets acumulados</div>
+        </div>
+      </div>
+    `;
+
+    // --- Gráfica: ventas por día ---
+    elRepChartDias.innerHTML = '';
+    if (!ventas.length) {
+      const p = document.createElement('p');
+      p.style.fontSize = '12px';
+      p.style.color = '#6b7280';
+      p.textContent = 'Sin ventas para los filtros seleccionados.';
+      elRepChartDias.appendChild(p);
+
+      elRepChartPagos.innerHTML = '';
+      elRepLegendPagos.innerHTML = '';
+      elRepTopProductos.innerHTML = '';
+      return;
+    }
+
+    // Agrupar por día
+    const mapaDias = {};
+    ventas.forEach(v => {
+      const d = v.fechaISO.slice(0, 10); // YYYY-MM-DD
+      mapaDias[d] = (mapaDias[d] || 0) + v.total;
+    });
+    const diasOrdenados = Object.keys(mapaDias).sort();
+    const datosDias = diasOrdenados.map(d => ({
+      fecha: d.slice(5), // MM-DD
+      total: mapaDias[d]
+    }));
+    const maxDia = Math.max(...datosDias.map(d => d.total), 1);
+
+    datosDias.forEach(d => {
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      const lbl = document.createElement('div');
+      lbl.className = 'bar-label';
+      lbl.textContent = d.fecha;
+      const track = document.createElement('div');
+      track.className = 'bar-track';
+      const fill = document.createElement('div');
+      fill.className = 'bar-fill';
+      fill.style.width = (d.total / maxDia * 100) + '%';
+      track.appendChild(fill);
+      row.appendChild(lbl);
+      row.appendChild(track);
+      elRepChartDias.appendChild(row);
+    });
+
+    // --- Gráfica: formas de pago ---
+    const pagos = { Efectivo: 0, Tarjeta: 0, Transferencia: 0, Mixto: 0 };
+    ventas.forEach(v => {
+      if (pagos[v.formaPago] != null) {
+        pagos[v.formaPago] += v.total;
+      }
+    });
+    elRepChartPagos.innerHTML = '';
+    elRepLegendPagos.innerHTML = '';
+    const totalPagos = Object.values(pagos).reduce((a, v) => a + v, 0) || 1;
+
+    Object.entries(pagos).forEach(([medio, valor]) => {
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      const lbl = document.createElement('div');
+      lbl.className = 'bar-label';
+      lbl.textContent = medio;
+      const track = document.createElement('div');
+      track.className = 'bar-track';
+      const fill = document.createElement('div');
+      fill.className = 'bar-fill';
+      fill.style.width = (valor / totalPagos * 100) + '%';
+      track.appendChild(fill);
+      row.appendChild(lbl);
+      row.appendChild(track);
+      elRepChartPagos.appendChild(row);
+
+      const pill = document.createElement('span');
+      pill.className = 'pill';
+      pill.textContent = `${medio}: ${money(valor)}`;
+      elRepLegendPagos.appendChild(pill);
+    });
+
+    // --- Top productos (por total de venta) ---
+    const mapaProd = {};
+    ventas.forEach(v => {
+      (v.items || []).forEach(it => {
+        const key = it.nombre || it.sku || 'SIN NOMBRE';
+        if (!mapaProd[key]) {
+          mapaProd[key] = { nombre: key, cant: 0, total: 0 };
+        }
+        mapaProd[key].cant += it.cant || 0;
+        mapaProd[key].total += (it.cant || 0) * (it.precio || 0);
+      });
+    });
+
+    const listaProd = Object.values(mapaProd)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 15);
+
+    elRepTopProductos.innerHTML = '';
+    listaProd.forEach(p => {
+      const tr = document.createElement('tr');
+      const tdNom = document.createElement('td');
+      tdNom.textContent = p.nombre;
+      const tdCant = document.createElement('td');
+      tdCant.textContent = p.cant;
+      const tdTotal = document.createElement('td');
+      tdTotal.textContent = money(p.total);
+      tr.appendChild(tdNom);
+      tr.appendChild(tdCant);
+      tr.appendChild(tdTotal);
+      elRepTopProductos.appendChild(tr);
+    });
+  }
+
+  // Listeners de filtros de reportes
+  [elRepDesde, elRepHasta, elRepFormaPago].forEach(ctrl => {
+    if (!ctrl) return;
+    ctrl.addEventListener('input', renderReportes);
+    ctrl.addEventListener('change', renderReportes);
+  });
+
+  if (btnRepHoy) {
+    btnRepHoy.addEventListener('click', () => {
+      const hoy = new Date().toISOString().slice(0, 10);
+      elRepDesde.value = hoy;
+      elRepHasta.value = hoy;
+      renderReportes();
+    });
+  }
+  if (btnRepMes) {
+    btnRepMes.addEventListener('click', () => {
+      const ahora = new Date();
+      const y = ahora.getFullYear();
+      const m = String(ahora.getMonth() + 1).padStart(2, '0');
+      elRepDesde.value = `${y}-${m}-01`;
+      // último día del mes
+      const ultimoDia = new Date(y, ahora.getMonth() + 1, 0).getDate();
+      elRepHasta.value = `${y}-${m}-${String(ultimoDia).padStart(2, '0')}`;
+      renderReportes();
+    });
+  }
+  if (btnRepTodo) {
+    btnRepTodo.addEventListener('click', () => {
+      elRepDesde.value = '';
+      elRepHasta.value = '';
+      elRepFormaPago.value = '';
+      renderReportes();
+    });
+  } 
+  
 // ---------------------------
 // CONFIG
 // ---------------------------
-const elCfgNegocio = document.getElementById('cfgNegocio');
-const elCfgIva = document.getElementById('cfgIva');
-const elCfgMensaje = document.getElementById('cfgMensaje');
-const elBtnGuardarCfg = document.getElementById('btnGuardarCfg');
-const elBtnExportJson = document.getElementById('btnExportJson');
+const elCfgNegocio      = document.getElementById('cfgNegocio');
+const elCfgRFC          = document.getElementById('cfgRFC');
+const elCfgDireccion    = document.getElementById('cfgDireccion');
+const elCfgTelefono     = document.getElementById('cfgTelefono');
+const elCfgIva          = document.getElementById('cfgIva');
+const elCfgMensaje      = document.getElementById('cfgMensaje');
+const elBtnGuardarCfg   = document.getElementById('btnGuardarCfg');
+const elBtnExportJson   = document.getElementById('btnExportJson');
 const elInputImportJson = document.getElementById('inputImportJson');
 
 function loadConfigForm(){
-  elCfgNegocio.value = state.config.negocio || '';
-  elCfgIva.value = state.config.ivaDefault || 0;
-  elCfgMensaje.value = state.config.mensajeTicket || '';
+  elCfgNegocio.value   = state.config.negocio   || '';
+  elCfgRFC.value       = state.config.rfc       || '';
+  elCfgDireccion.value = state.config.direccion || '';
+  elCfgTelefono.value  = state.config.telefono  || '';
+  elCfgIva.value       = state.config.ivaDefault || 0;
+  elCfgMensaje.value   = state.config.mensajeTicket || '';
 }
-elBtnGuardarCfg.addEventListener('click',()=>{
-  state.config.negocio = elCfgNegocio.value.trim() || 'Farmacia DP';
-  state.config.ivaDefault = Number(elCfgIva.value)||0;
+
+elBtnGuardarCfg.addEventListener('click', () => {
+  state.config.negocio       = elCfgNegocio.value.trim()   || 'Farmacia DP';
+  state.config.rfc           = elCfgRFC.value.trim()       || '';
+  state.config.direccion     = elCfgDireccion.value.trim() || '';
+  state.config.telefono      = elCfgTelefono.value.trim()  || '';
+  state.config.ivaDefault    = Number(elCfgIva.value) || 0;
   state.config.mensajeTicket = elCfgMensaje.value.trim() || '¡Gracias por su compra!';
+
   saveState();
   alert('Configuración guardada.');
 });
-elBtnExportJson.addEventListener('click',()=>{
-  const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download='farmacia_dp_backup.json';a.click();
+
+elBtnExportJson.addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state,null,2)], { type:'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = 'farmacia_dp_backup.json';
+  a.click();
   URL.revokeObjectURL(url);
 });
-elInputImportJson.addEventListener('change',e=>{
-  const file=e.target.files[0];
-  if(!file) return;
-  const reader=new FileReader();
-  reader.onload=function(ev){
-    try{
-      const imported=JSON.parse(ev.target.result);
-      state = Object.assign(state, imported);
-      if(!Array.isArray(state.categorias) || !state.categorias.length){
-        state.categorias=['Original','Genérico','Controlado','Perfumería'];
-      }
-      saveState();
-      alert('Backup restaurado. Recarga la página para aplicar todo.');
-    }catch(err){
-      alert('Error al importar JSON');
-    }
-  };
-  reader.readAsText(file);
-});
 
-// ---------------------------
-// DASHBOARD simple
-// ---------------------------
-const elDashKpis = document.getElementById('dashKpis');
-const elChart7dias = document.getElementById('chart7dias');
-const elChartPagos = document.getElementById('chartPagos');
-const elLegendPagos = document.getElementById('legendPagos');
-const elListaUltimasVentas = document.getElementById('listaUltimasVentas');
-const elListaKardex = document.getElementById('listaKardex');
+// ========= DASHBOARD PRO =========
+const elKpiVentasHoy   = document.getElementById('kpiVentasHoy');
+const elKpiTicketsHoy  = document.getElementById('kpiTicketsHoy');
+const elKpiTicketProm  = document.getElementById('kpiTicketProm');
+const elKpiIvaHoy      = document.getElementById('kpiIvaHoy');
+const elKpiVentasMes   = document.getElementById('kpiVentasMes');
+const elKpiMesActual   = document.getElementById('kpiMesActual');
 
-function renderDashboard(){
+const elChartVentas7   = document.getElementById('chartVentas7');
+const elChart7Labels   = document.getElementById('chart7Labels');
+const elChart7Total    = document.getElementById('chart7Total');
+
+const elChartPagos     = document.getElementById('chartPagos');
+const elChartPagosLegend = document.getElementById('chartPagosLegend');
+const elChartPagosTotal  = document.getElementById('chartPagosTotal');
+const elDonutTotal     = document.getElementById('donutTotal');
+
+const elDashListaUltimas = document.getElementById('listaUltimasVentas');
+const elDashListaKardex  = document.getElementById('listaKardex');
+
+function renderDashboardPro(){
   const hoyStr = new Date().toISOString().slice(0,10);
-  const ventasHoy = state.ventas.filter(v=>v.fechaISO.slice(0,10)===hoyStr);
-  const montoHoy = ventasHoy.reduce((a,v)=>a+v.total,0);
-  const ivaHoy = ventasHoy.reduce((a,v)=>a+v.ivaMonto,0);
+  const ventasHoy = state.ventas.filter(v => v.fechaISO.slice(0,10) === hoyStr);
+  const montoHoy  = ventasHoy.reduce((a,v)=>a+v.total,0);
+  const ivaHoy    = ventasHoy.reduce((a,v)=>a+v.ivaMonto,0);
   const ticketsHoy = ventasHoy.length;
-  const ticketProm = ticketsHoy ? (montoHoy/ticketsHoy) : 0;
+  const ticketProm = ticketsHoy ? montoHoy / ticketsHoy : 0;
 
-  const mesStr = hoyStr.slice(0,7);
-  const ventasMes = state.ventas.filter(v=>v.fechaISO.slice(0,7)===mesStr);
-  const montoMes = ventasMes.reduce((a,v)=>a+v.total,0);
+  const mesStr = hoyStr.slice(0,7); // YYYY-MM
+  const ventasMes = state.ventas.filter(v=>v.fechaISO.slice(0,7) === mesStr);
+  const montoMes  = ventasMes.reduce((a,v)=>a+v.total,0);
 
-  elDashKpis.innerHTML = `
-    <div class="kpi-card">
-      <div class="kpi-label">Ventas hoy</div>
-      <div class="kpi-value">${money(montoHoy)}</div>
-      <div class="kpi-extra">${ticketsHoy} tickets</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Ticket promedio hoy</div>
-      <div class="kpi-value">${money(ticketProm)}</div>
-      <div class="kpi-extra">Con base en ventas de hoy</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">IVA hoy</div>
-      <div class="kpi-value">${money(ivaHoy)}</div>
-      <div class="kpi-extra">Calculado sobre ventas con IVA</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Ventas del mes</div>
-      <div class="kpi-value">${money(montoMes)}</div>
-      <div class="kpi-extra">${mesStr}</div>
-    </div>
-  `;
+  // KPIs
+  if(elKpiVentasHoy)  elKpiVentasHoy.textContent  = money(montoHoy);
+  if(elKpiTicketsHoy) elKpiTicketsHoy.textContent = `${ticketsHoy} ticket(s)`;
+  if(elKpiTicketProm) elKpiTicketProm.textContent = money(ticketProm);
+  if(elKpiIvaHoy)     elKpiIvaHoy.textContent     = money(ivaHoy);
+  if(elKpiVentasMes)  elKpiVentasMes.textContent  = money(montoMes);
+  if(elKpiMesActual)  elKpiMesActual.textContent  = mesStr;
 
-  // Ventas últimos 7 días
-  const hoy = new Date();
-  const data7 = [];
-  for(let i=6;i>=0;i--){
-    const d = new Date(hoy);
-    d.setDate(hoy.getDate()-i);
-    const key = d.toISOString().slice(0,10);
-    const totalDia = state.ventas.filter(v=>v.fechaISO.slice(0,10)===key)
-      .reduce((a,v)=>a+v.total,0);
-    data7.push({fecha:key.slice(5), total:totalDia});
+  // ===== Gráfico barras últimos 7 días =====
+  if(elChartVentas7 && elChart7Labels && elChart7Total){
+    const ctx = elChartVentas7.getContext('2d');
+    const hoy = new Date();
+    const data7 = [];
+    for(let i=6;i>=0;i--){
+      const d = new Date(hoy);
+      d.setDate(hoy.getDate()-i);
+      const key = d.toISOString().slice(0,10);
+      const totalDia = state.ventas
+        .filter(v=>v.fechaISO.slice(0,10)===key)
+        .reduce((a,v)=>a+v.total,0);
+      data7.push({
+        fecha: key.slice(5), // MM-DD
+        total: totalDia
+      });
+    }
+    const maxTotal = Math.max(...data7.map(d=>d.total),1);
+    const total7 = data7.reduce((a,d)=>a+d.total,0);
+
+    elChart7Total.textContent = money(total7);
+
+    // limpiar canvas
+    ctx.clearRect(0,0,elChartVentas7.width, elChartVentas7.height);
+    const w = elChartVentas7.width;
+    const h = elChartVentas7.height;
+    const margin = {top:20,right:10,bottom:20,left:10};
+    const chartW = w - margin.left - margin.right;
+    const chartH = h - margin.top - margin.bottom;
+
+    const barWidth = chartW / (data7.length*1.7);
+
+    // eje base
+    ctx.strokeStyle = '#cbd5f5';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, h - margin.bottom);
+    ctx.lineTo(w - margin.right, h - margin.bottom);
+    ctx.stroke();
+
+    data7.forEach((d,idx)=>{
+      const xCenter = margin.left + (idx+0.5)* (chartW/data7.length);
+      const barH = (d.total / maxTotal) * (chartH - 10);
+      const y = h - margin.bottom - barH;
+
+      const radius = 6;
+      const x = xCenter - barWidth/2;
+
+      // barra
+      const grad = ctx.createLinearGradient(0,y,0,y+barH);
+      grad.addColorStop(0,'#2563eb');
+      grad.addColorStop(1,'#93c5fd');
+      ctx.fillStyle = grad;
+
+      const bw = barWidth;
+      const bh = barH;
+      ctx.beginPath();
+      ctx.moveTo(x, y + radius);
+      ctx.arcTo(x, y, x+radius, y, radius);
+      ctx.arcTo(x+bw, y, x+bw, y+radius, radius);
+      ctx.lineTo(x+bw, y+bh);
+      ctx.lineTo(x, y+bh);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // labels abajo
+    elChart7Labels.innerHTML = '';
+    data7.forEach(d=>{
+      const span = document.createElement('span');
+      span.textContent = d.fecha;
+      elChart7Labels.appendChild(span);
+    });
   }
-  const maxDia = Math.max(...data7.map(d=>d.total),1);
-  elChart7dias.innerHTML = '';
-  data7.forEach(d=>{
-    const row=document.createElement('div');row.className='bar-row';
-    const lbl=document.createElement('div');lbl.className='bar-label';lbl.textContent=d.fecha;
-    const track=document.createElement('div');track.className='bar-track';
-    const fill=document.createElement('div');fill.className='bar-fill';
-    fill.style.width = (d.total/maxDia*100)+'%';
-    track.appendChild(fill);row.appendChild(lbl);row.appendChild(track);
-    elChart7dias.appendChild(row);
-  });
 
-  // Formas de pago hoy
-  const pagos = {Efectivo:0,Tarjeta:0,Transferencia:0,Mixto:0};
-  ventasHoy.forEach(v=>{
-    if(pagos[v.formaPago]!=null){pagos[v.formaPago]+=v.total;}
-  });
-  elChartPagos.innerHTML='';
-  elLegendPagos.innerHTML='';
-  const totalPagos = Object.values(pagos).reduce((a,v)=>a+v,0) || 1;
-  Object.entries(pagos).forEach(([medio,valor])=>{
-    const row=document.createElement('div');row.className='bar-row';
-    const lbl=document.createElement('div');lbl.className='bar-label';lbl.textContent=medio;
-    const track=document.createElement('div');track.className='bar-track';
-    const fill=document.createElement('div');fill.className='bar-fill';
-    fill.style.width=(valor/totalPagos*100)+'%';
-    track.appendChild(fill);row.appendChild(lbl);row.appendChild(track);
-    elChartPagos.appendChild(row);
-    const pill=document.createElement('span');pill.className='pill';
-    pill.textContent=`${medio}: ${money(valor)}`;
-    elLegendPagos.appendChild(pill);
-  });
+  // ===== Donut formas de pago =====
+  if(elChartPagos && elChartPagosLegend && elDonutTotal && elChartPagosTotal){
+    const ctx2 = elChartPagos.getContext('2d');
+    ctx2.clearRect(0,0,elChartPagos.width,elChartPagos.height);
 
-  // Últimas ventas
-  elListaUltimasVentas.innerHTML='';
-  const ultimas = state.ventas.slice(-5).reverse();
-  if(!ultimas.length){
-    elListaUltimasVentas.textContent='Sin ventas aún.';
-  }else{
-    ultimas.forEach(v=>{
+    const pagos = {Efectivo:0,Tarjeta:0,Transferencia:0,Mixto:0};
+    ventasHoy.forEach(v=>{
+      if(pagos[v.formaPago]!=null){
+        pagos[v.formaPago]+=v.total;
+      }
+    });
+
+    const colores = {
+      Efectivo:'#22c55e',
+      Tarjeta:'#3b82f6',
+      Transferencia:'#0ea5e9',
+      Mixto:'#f97316'
+    };
+
+    const total = Object.values(pagos).reduce((a,v)=>a+v,0);
+    const centerX = elChartPagos.width/2;
+    const centerY = elChartPagos.height/2;
+    const radius  = Math.min(centerX,centerY)-8;
+    const innerR  = radius*0.6;
+
+    let startAngle = -Math.PI/2;
+    if(total>0){
+      Object.entries(pagos).forEach(([medio,valor])=>{
+        if(valor<=0) return;
+        const slice = (valor/total)*Math.PI*2;
+        const endAngle = startAngle + slice;
+
+        ctx2.beginPath();
+        ctx2.moveTo(centerX,centerY);
+        ctx2.arc(centerX,centerY,radius,startAngle,endAngle);
+        ctx2.closePath();
+        ctx2.fillStyle = colores[medio] || '#e5e7eb';
+        ctx2.fill();
+
+        startAngle = endAngle;
+      });
+
+      // agujero
+      ctx2.globalCompositeOperation = 'destination-out';
+      ctx2.beginPath();
+      ctx2.arc(centerX,centerY,innerR,0,Math.PI*2);
+      ctx2.fill();
+      ctx2.globalCompositeOperation = 'source-over';
+    }else{
+      // sin datos: círculo gris
+      ctx2.beginPath();
+      ctx2.arc(centerX,centerY,radius,0,Math.PI*2);
+      ctx2.fillStyle='#e5e7eb';
+      ctx2.fill();
+
+      ctx2.beginPath();
+      ctx2.arc(centerX,centerY,innerR,0,Math.PI*2);
+      ctx2.fillStyle='#fff';
+      ctx2.fill();
+    }
+
+    elDonutTotal.textContent = money(total);
+    elChartPagosTotal.textContent = money(total);
+
+    // leyenda
+    elChartPagosLegend.innerHTML = '';
+    Object.entries(pagos).forEach(([medio,valor])=>{
+      if(valor<=0) return;
+      const item = document.createElement('div');
+      item.className='chart-legend-item';
+      const dot = document.createElement('span');
+      dot.className='chart-legend-dot';
+      dot.style.background = colores[medio] || '#e5e7eb';
+      const txt = document.createElement('span');
+      const porc = total>0 ? ((valor/total)*100).toFixed(1) : '0.0';
+      txt.textContent = `${medio}: ${money(valor)} (${porc}%)`;
+      item.appendChild(dot);
+      item.appendChild(txt);
+      elChartPagosLegend.appendChild(item);
+    });
+  }
+
+  // ===== Listas: últimas ventas y kardex =====
+  if(elDashListaUltimas){
+    elDashListaUltimas.innerHTML='';
+    const ultimas = state.ventas.slice(-5).reverse();
+    if(!ultimas.length){
+      elDashListaUltimas.textContent='Sin ventas aún.';
+    }else{
+      ultimas.forEach(v=>{
+        const row = document.createElement('div');
+        row.style.display='flex';
+        row.style.justifyContent='space-between';
+        row.innerHTML = `<span>${v.id} · ${v.fechaTexto.slice(0,16)}</span><span>${money(v.total)}</span>`;
+        elDashListaUltimas.appendChild(row);
+      });
+    }
+  }
+
+  if(elDashListaKardex){
+    elDashListaKardex.innerHTML='';
+    const lineas=[];
+    state.ventas.forEach(v=>{
+      v.items.forEach(it=>{
+        lineas.push({fecha:v.fechaISO,item:it});
+      });
+    });
+    lineas.sort((a,b)=>b.fecha.localeCompare(a.fecha));
+    lineas.slice(0,8).forEach(l=>{
       const row=document.createElement('div');
-      row.innerHTML=`<span>${v.id} · ${v.fechaTexto.slice(11,16)}</span><span>${money(v.total)}</span>`;
-      elListaUltimasVentas.appendChild(row);
+      row.style.display='flex';
+      row.style.justifyContent='space-between';
+      row.innerHTML = `<span>${l.item.nombre}</span><span>-${l.item.cant}</span>`;
+      elDashListaKardex.appendChild(row);
     });
   }
-  // Kardex simple (por ahora solo ventas)
-  elListaKardex.innerHTML='';
-  const lineas=[];
-  state.ventas.forEach(v=>{
-    v.items.forEach(it=>{
-      lineas.push({fecha:v.fechaISO,item:it});
-    });
-  });
-  lineas.sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  lineas.slice(0,8).forEach(l=>{
-    const row=document.createElement('div');
-    row.innerHTML=`<span>${l.item.nombre}</span><span>-${l.item.cant}</span>`;
-    elListaKardex.appendChild(row);
-  });
 }
 
 // ---------------------------
@@ -1373,7 +1994,7 @@ elIvaPorc.value = state.config.ivaDefault || 0;
 fillCategoriasSelect();
 renderCatalog('');
 paintCart();
-renderDashboard();
+renderDashboardPro();
 renderClientes();
 renderHistorial();
 renderReportes();
