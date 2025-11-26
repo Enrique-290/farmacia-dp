@@ -10,15 +10,12 @@
 <div class="app">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-  <div class="logo-badge" id="sidebarLogoBadge">
-    <span id="sidebarLogoText">Rx</span>
-  </div>
-  <div>
-    <div class="sidebar-title" id="sidebarBusinessName">Farmacia DP</div>
-    <div class="sidebar-sub" id="sidebarBusinessSub">TPV Demo</div>
-  </div>
-</div>
-
+      <div class="logo-badge">Rx</div>
+      <div>
+        <div class="sidebar-title">Farmacia DP</div>
+        <div class="sidebar-sub">TPV Demo</div>
+      </div>
+    </div>
     <nav class="nav">
       <div class="nav-section-title">General</div>
       <div class="nav-item active" data-page="dashboard"><span class="icon">📊</span><span>Dashboard</span></div>
@@ -564,36 +561,23 @@
         </div>
       </section>
 
-           <!-- CONFIGURACIÓN -->
-       <section class="page" id="page-config">
-        <div class="card">
-          <div class="card-title">Configuración</div>
-          <div class="card-sub">
-            Parámetros básicos: datos del negocio, IVA, ticket y respaldos.
-          /<div>
+      <!-- CONFIGURACIÓN -->
+ <section class="page" id="page-config">
+  <div class="card">
+    <div class="card-title">Configuración</div>
+    <div class="card-sub">
+      Parámetros básicos: datos del negocio, IVA, ticket y respaldos.
+    /<div>
 
-          <div class="grid" style="grid-template-columns:1.3fr 1.7fr;margin-top:10px;gap:18px;">
-            <!-- Columna izquierda: datos y ticket -->
-            <div>
-              <div class="field-label" style="font-weight:600;margin-bottom:4px;">
-                Datos del negocio
-              </div>
-
-              <div class="field-label">Nombre del negocio</div>
-              <input id="cfgNegocio" class="input" placeholder="Ej. Farmacia DP">
-
-              <div class="field-label">Logotipo</div>
-      <div class="config-logo-row">
-        <div id="cfgLogoPreview" class="config-logo-preview">
-          Rx
+    <div class="grid" style="grid-template-columns:1.3fr 1.7fr;margin-top:10px;gap:18px;">
+      <!-- Columna izquierda: datos y ticket -->
+      <div>
+        <div class="field-label" style="font-weight:600;margin-bottom:4px;">
+          Datos del negocio
         </div>
-        <div class="config-logo-actions">
-          <input type="file" id="cfgLogoFile" accept="image/*" />
-          <button type="button" class="btn btn-soft" id="btnCfgLogoClear">
-            Quitar logo
-          </button>
-        </div>
-      </div>
+
+        <div class="field-label">Nombre del negocio</div>
+        <input id="cfgNegocio" class="input" placeholder="Ej. Farmacia DP">
 
         <div class="field-label" style="margin-top:6px;">RFC</div>
         <input id="cfgRFC" class="input" placeholder="Opcional">
@@ -637,7 +621,7 @@
         <p style="font-size:12px;color:#64748b;margin-top:10px;margin-bottom:4px;">
           Para restaurar un respaldo, selecciona el archivo:
         </p>
-        <input type="file" id="inputImportJson" accept="application/json" />
+        <input type="file" id="inputImportJson" accept="application/json">
 
         <p style="font-size:12px;color:#64748b;margin-top:8px;">
           Los datos se guardan en este navegador usando

@@ -465,34 +465,3 @@ section.page.active{display:block;}
   font-weight:600;
   margin-bottom:4px;
 }
-.config-logo-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.config-logo-preview {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  background: #0ea5e9;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 20px;
-  overflow: hidden;
-}
-
-.config-logo-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.config-logo-actions input[type="file"] {
-  font-size: 12px;
-}

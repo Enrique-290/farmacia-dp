@@ -2,64 +2,37 @@
 // Estado y almacenamiento
 // ---------------------------
 const LS_KEY = 'farmacia_dp_demo_state_v2';
-
 let state = {
   config: {
     negocio: 'Farmacia DP',
-    rfc: '',
-    direccion: '',
-    telefono: '',
     ivaDefault: 0,
-    mensajeTicket: '¡Gracias por su compra!',
-    logoDataUrl: null // si luego quieres guardar el logo aquí
+    mensajeTicket: '¡Gracias por su compra!'
   },
   categorias: ['Original','Genérico','Controlado','Perfumería'],
   inventario: [],
   clientes: [],
-  ventas: [],   // historial de tickets
-  bodega: []    // movimientos y lotes de bodega
+  ventas: [], // historial de tickets
 };
 
-function loadState() {
-  try {
+function loadState(){
+  try{
     const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return;
-
-    const data = JSON.parse(raw);
-
-    // Mezclamos lo que ya trae el navegador con los defaults de arriba
-    state = {
-      ...state,
-      ...data,
-      config: {
-        ...state.config,
-        ...(data.config || {})
-      }
-    };
-
-    // Aseguramos que siempre sean arrays válidos
-    if (!Array.isArray(state.categorias) || !state.categorias.length) {
-      state.categorias = ['Original','Genérico','Controlado','Perfumería'];
+    if(raw){
+      const parsed = JSON.parse(raw);
+      state = Object.assign(state, parsed);
     }
-    if (!Array.isArray(state.inventario)) state.inventario = [];
-    if (!Array.isArray(state.clientes))   state.clientes   = [];
-    if (!Array.isArray(state.ventas))     state.ventas     = [];
-    if (!Array.isArray(state.bodega))     state.bodega     = [];
-
-  } catch (e) {
-    console.error('Error al cargar state', e);
+  }catch(e){console.error('loadState',e);}
+  if(!Array.isArray(state.categorias) || !state.categorias.length){
+    state.categorias = ['Original','Genérico','Controlado','Perfumería'];
   }
 }
-
-function saveState() {
-  try {
+function saveState(){
+  try{
     localStorage.setItem(LS_KEY, JSON.stringify(state));
-  } catch (e) {
-    console.error('saveState', e);
-  }
+  }catch(e){console.error('saveState',e);}
 }
+function money(v){return '$'+(Number(v)||0).toFixed(2);}
 
-// Cargar al arrancar la app
 loadState();
 
 // Asegurar estructura de lotes en inventario
@@ -1750,7 +1723,7 @@ const elBtnGuardarCfg   = document.getElementById('btnGuardarCfg');
 const elBtnExportJson   = document.getElementById('btnExportJson');
 const elInputImportJson = document.getElementById('inputImportJson');
 
-function loadConfigForm() {
+function loadConfigForm(){
   elCfgNegocio.value   = state.config.negocio   || '';
   elCfgRFC.value       = state.config.rfc       || '';
   elCfgDireccion.value = state.config.direccion || '';
@@ -1772,57 +1745,15 @@ elBtnGuardarCfg.addEventListener('click', () => {
 });
 
 elBtnExportJson.addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], {
-    type: 'application/json'
-  });
-  const url = URL.createObjectURL(blob);
-  const a   = document.createElement('a');
+  const blob = new Blob([JSON.stringify(state,null,2)], { type:'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
   a.href = url;
   a.download = 'farmacia_dp_backup.json';
   a.click();
   URL.revokeObjectURL(url);
 });
 
-elInputImportJson.addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try {
-      const imported = JSON.parse(ev.target.result);
-
-      // Mezclamos el backup con los defaults actuales
-      state = {
-        ...state,
-        ...imported,
-        config: {
-          ...state.config,
-          ...(imported.config || {})
-        }
-      };
-
-      saveState();
-
-      // Refrescamos pantallas para que se note el cambio
-      fillCategoriasSelect();
-      renderInventario();
-      renderCatalog(currentFilter);
-      renderClientes();
-      renderHistorial();
-      renderReportes();
-      renderDashboard();
-
-      alert('Backup restaurado correctamente.');
-    } catch (err) {
-      console.error(err);
-      alert('Error al importar JSON (formato inválido)');
-    }
-  };
-  reader.readAsText(file);
-});
-
-// ---------------------------------
 // ========= DASHBOARD PRO =========
 const elKpiVentasHoy   = document.getElementById('kpiVentasHoy');
 const elKpiTicketsHoy  = document.getElementById('kpiTicketsHoy');
