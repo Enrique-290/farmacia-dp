@@ -1709,7 +1709,7 @@ function renderBodega(){
       renderReportes();
     });
   } 
-  
+
 // ---------------------------
 // CONFIG
 // ---------------------------
@@ -1754,236 +1754,220 @@ elBtnExportJson.addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// ========= DASHBOARD PRO =========
-const elKpiVentasHoy   = document.getElementById('kpiVentasHoy');
-const elKpiTicketsHoy  = document.getElementById('kpiTicketsHoy');
-const elKpiTicketProm  = document.getElementById('kpiTicketProm');
-const elKpiIvaHoy      = document.getElementById('kpiIvaHoy');
-const elKpiVentasMes   = document.getElementById('kpiVentasMes');
-const elKpiMesActual   = document.getElementById('kpiMesActual');
-
-const elChartVentas7   = document.getElementById('chartVentas7');
-const elChart7Labels   = document.getElementById('chart7Labels');
-const elChart7Total    = document.getElementById('chart7Total');
-
-const elChartPagos     = document.getElementById('chartPagos');
-const elChartPagosLegend = document.getElementById('chartPagosLegend');
-const elChartPagosTotal  = document.getElementById('chartPagosTotal');
-const elDonutTotal     = document.getElementById('donutTotal');
-
-const elDashListaUltimas = document.getElementById('listaUltimasVentas');
-const elDashListaKardex  = document.getElementById('listaKardex');
-
-function renderDashboardPro(){
-  const hoyStr = new Date().toISOString().slice(0,10);
-  const ventasHoy = state.ventas.filter(v => v.fechaISO.slice(0,10) === hoyStr);
-  const montoHoy  = ventasHoy.reduce((a,v)=>a+v.total,0);
-  const ivaHoy    = ventasHoy.reduce((a,v)=>a+v.ivaMonto,0);
-  const ticketsHoy = ventasHoy.length;
-  const ticketProm = ticketsHoy ? montoHoy / ticketsHoy : 0;
-
-  const mesStr = hoyStr.slice(0,7); // YYYY-MM
-  const ventasMes = state.ventas.filter(v=>v.fechaISO.slice(0,7) === mesStr);
-  const montoMes  = ventasMes.reduce((a,v)=>a+v.total,0);
-
-  // KPIs
-  if(elKpiVentasHoy)  elKpiVentasHoy.textContent  = money(montoHoy);
-  if(elKpiTicketsHoy) elKpiTicketsHoy.textContent = `${ticketsHoy} ticket(s)`;
-  if(elKpiTicketProm) elKpiTicketProm.textContent = money(ticketProm);
-  if(elKpiIvaHoy)     elKpiIvaHoy.textContent     = money(ivaHoy);
-  if(elKpiVentasMes)  elKpiVentasMes.textContent  = money(montoMes);
-  if(elKpiMesActual)  elKpiMesActual.textContent  = mesStr;
-
-  // ===== Gráfico barras últimos 7 días =====
-  if(elChartVentas7 && elChart7Labels && elChart7Total){
-    const ctx = elChartVentas7.getContext('2d');
-    const hoy = new Date();
-    const data7 = [];
-    for(let i=6;i>=0;i--){
-      const d = new Date(hoy);
-      d.setDate(hoy.getDate()-i);
-      const key = d.toISOString().slice(0,10);
-      const totalDia = state.ventas
-        .filter(v=>v.fechaISO.slice(0,10)===key)
-        .reduce((a,v)=>a+v.total,0);
-      data7.push({
-        fecha: key.slice(5), // MM-DD
-        total: totalDia
-      });
-    }
-    const maxTotal = Math.max(...data7.map(d=>d.total),1);
-    const total7 = data7.reduce((a,d)=>a+d.total,0);
-
-    elChart7Total.textContent = money(total7);
-
-    // limpiar canvas
-    ctx.clearRect(0,0,elChartVentas7.width, elChartVentas7.height);
-    const w = elChartVentas7.width;
-    const h = elChartVentas7.height;
-    const margin = {top:20,right:10,bottom:20,left:10};
-    const chartW = w - margin.left - margin.right;
-    const chartH = h - margin.top - margin.bottom;
-
-    const barWidth = chartW / (data7.length*1.7);
-
-    // eje base
-    ctx.strokeStyle = '#cbd5f5';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(margin.left, h - margin.bottom);
-    ctx.lineTo(w - margin.right, h - margin.bottom);
-    ctx.stroke();
-
-    data7.forEach((d,idx)=>{
-      const xCenter = margin.left + (idx+0.5)* (chartW/data7.length);
-      const barH = (d.total / maxTotal) * (chartH - 10);
-      const y = h - margin.bottom - barH;
-
-      const radius = 6;
-      const x = xCenter - barWidth/2;
-
-      // barra
-      const grad = ctx.createLinearGradient(0,y,0,y+barH);
-      grad.addColorStop(0,'#2563eb');
-      grad.addColorStop(1,'#93c5fd');
-      ctx.fillStyle = grad;
-
-      const bw = barWidth;
-      const bh = barH;
-      ctx.beginPath();
-      ctx.moveTo(x, y + radius);
-      ctx.arcTo(x, y, x+radius, y, radius);
-      ctx.arcTo(x+bw, y, x+bw, y+radius, radius);
-      ctx.lineTo(x+bw, y+bh);
-      ctx.lineTo(x, y+bh);
-      ctx.closePath();
-      ctx.fill();
-    });
-
-    // labels abajo
-    elChart7Labels.innerHTML = '';
-    data7.forEach(d=>{
-      const span = document.createElement('span');
-      span.textContent = d.fecha;
-      elChart7Labels.appendChild(span);
-    });
-  }
-
-  // ===== Donut formas de pago =====
-  if(elChartPagos && elChartPagosLegend && elDonutTotal && elChartPagosTotal){
-    const ctx2 = elChartPagos.getContext('2d');
-    ctx2.clearRect(0,0,elChartPagos.width,elChartPagos.height);
-
-    const pagos = {Efectivo:0,Tarjeta:0,Transferencia:0,Mixto:0};
-    ventasHoy.forEach(v=>{
-      if(pagos[v.formaPago]!=null){
-        pagos[v.formaPago]+=v.total;
+elInputImportJson.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    try {
+      const imported = JSON.parse(ev.target.result);
+      state = Object.assign(state, imported);
+      ensureLotesStructure();
+      if (!Array.isArray(state.categorias) || !state.categorias.length){
+        state.categorias = ['Original','Genérico','Controlado','Perfumería'];
       }
-    });
+      saveState();
+      alert('Backup restaurado. Recarga la página para aplicar todo.');
+    } catch(err){
+      alert('Error al importar JSON');
+    }
+  };
+  reader.readAsText(file);
+});
 
-    const colores = {
-      Efectivo:'#22c55e',
-      Tarjeta:'#3b82f6',
-      Transferencia:'#0ea5e9',
-      Mixto:'#f97316'
-    };
+// ---------------------------
+// DASHBOARD
+// ---------------------------
+const elDashKpis           = document.getElementById('dashKpis');
+const elChart7dias         = document.getElementById('chart7dias');
+const elChartPagos         = document.getElementById('chartPagos');
+const elLegendPagos        = document.getElementById('legendPagos');
+const elListaUltimasVentas = document.getElementById('listaUltimasVentas');
+const elListaKardex        = document.getElementById('listaKardex');
 
-    const total = Object.values(pagos).reduce((a,v)=>a+v,0);
-    const centerX = elChartPagos.width/2;
-    const centerY = elChartPagos.height/2;
-    const radius  = Math.min(centerX,centerY)-8;
-    const innerR  = radius*0.6;
+// normaliza fecha a yyyy-mm-dd
+function normalizeDate(str){
+  if(!str) return null;
+  const d = new Date(str);
+  if(isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
 
-    let startAngle = -Math.PI/2;
-    if(total>0){
-      Object.entries(pagos).forEach(([medio,valor])=>{
-        if(valor<=0) return;
-        const slice = (valor/total)*Math.PI*2;
-        const endAngle = startAngle + slice;
+function sameDay(a,b){
+  return a.getFullYear()===b.getFullYear()
+      && a.getMonth()===b.getMonth()
+      && a.getDate()===b.getDate();
+}
 
-        ctx2.beginPath();
-        ctx2.moveTo(centerX,centerY);
-        ctx2.arc(centerX,centerY,radius,startAngle,endAngle);
-        ctx2.closePath();
-        ctx2.fillStyle = colores[medio] || '#e5e7eb';
-        ctx2.fill();
+function renderDashboard(){
+  const hoy = new Date();
+  const hoyDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  const inicio7 = new Date(hoyDia);
+  inicio7.setDate(hoyDia.getDate()-6);
 
-        startAngle = endAngle;
-      });
+  const tickets = (state.historial || []).map(t => {
+    // distintos nombres posibles de fecha/total/forma de pago
+    const fechaStr = t.fecha || t.fechaHora || t.fechaTicket || t.date;
+    const fecha    = normalizeDate(fechaStr) || hoyDia;
+    const total    = Number(t.total || t.totalVenta || t.monto || t.totalTicket || 0);
+    const forma    = (t.formaPago || t.metodoPago || t.pago || '').toLowerCase();
+    return {...t, _fecha:fecha, _total:total, _forma:forma};
+  });
 
-      // agujero
-      ctx2.globalCompositeOperation = 'destination-out';
-      ctx2.beginPath();
-      ctx2.arc(centerX,centerY,innerR,0,Math.PI*2);
-      ctx2.fill();
-      ctx2.globalCompositeOperation = 'source-over';
-    }else{
-      // sin datos: círculo gris
-      ctx2.beginPath();
-      ctx2.arc(centerX,centerY,radius,0,Math.PI*2);
-      ctx2.fillStyle='#e5e7eb';
-      ctx2.fill();
+  let ventasHoy = 0, ticketsHoy = 0;
+  let ventasMes = 0, ticketsMes = 0;
+  let totalHist = 0, totalTickets = 0;
 
-      ctx2.beginPath();
-      ctx2.arc(centerX,centerY,innerR,0,Math.PI*2);
-      ctx2.fillStyle='#fff';
-      ctx2.fill();
+  const pagosHoy = {efectivo:0, tarjeta:0, transferencia:0, otros:0};
+  const ventasPorDia = {};  // yyyy-mm-dd -> total
+
+  tickets.forEach(t => {
+    const f = t._fecha;
+    const tot = t._total;
+    if(!f || !isFinite(tot)) return;
+
+    totalHist += tot;
+    totalTickets++;
+
+    // hoy
+    if(sameDay(f, hoyDia)){
+      ventasHoy += tot;
+      ticketsHoy++;
+
+      if(t._forma.includes('tar'))      pagosHoy.tarjeta       += tot;
+      else if(t._forma.includes('trans')) pagosHoy.transferencia += tot;
+      else if(t._forma.includes('efec'))  pagosHoy.efectivo      += tot;
+      else                               pagosHoy.otros         += tot;
     }
 
-    elDonutTotal.textContent = money(total);
-    elChartPagosTotal.textContent = money(total);
-
-    // leyenda
-    elChartPagosLegend.innerHTML = '';
-    Object.entries(pagos).forEach(([medio,valor])=>{
-      if(valor<=0) return;
-      const item = document.createElement('div');
-      item.className='chart-legend-item';
-      const dot = document.createElement('span');
-      dot.className='chart-legend-dot';
-      dot.style.background = colores[medio] || '#e5e7eb';
-      const txt = document.createElement('span');
-      const porc = total>0 ? ((valor/total)*100).toFixed(1) : '0.0';
-      txt.textContent = `${medio}: ${money(valor)} (${porc}%)`;
-      item.appendChild(dot);
-      item.appendChild(txt);
-      elChartPagosLegend.appendChild(item);
-    });
-  }
-
-  // ===== Listas: últimas ventas y kardex =====
-  if(elDashListaUltimas){
-    elDashListaUltimas.innerHTML='';
-    const ultimas = state.ventas.slice(-5).reverse();
-    if(!ultimas.length){
-      elDashListaUltimas.textContent='Sin ventas aún.';
-    }else{
-      ultimas.forEach(v=>{
-        const row = document.createElement('div');
-        row.style.display='flex';
-        row.style.justifyContent='space-between';
-        row.innerHTML = `<span>${v.id} · ${v.fechaTexto.slice(0,16)}</span><span>${money(v.total)}</span>`;
-        elDashListaUltimas.appendChild(row);
-      });
+    // mes actual
+    if(f.getMonth()===hoyDia.getMonth() && f.getFullYear()===hoyDia.getFullYear()){
+      ventasMes += tot;
+      ticketsMes++;
     }
+
+    // últimos 7 días
+    if(f>=inicio7 && f<=hoyDia){
+      const key = f.toISOString().slice(0,10);
+      ventasPorDia[key] = (ventasPorDia[key]||0)+tot;
+    }
+  });
+
+  // ----- KPIs -----
+  const ticketProm = totalTickets ? totalHist/totalTickets : 0;
+  elDashKpis.innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">VENTAS HOY</div>
+      <div class="kpi-value">${money(ventasHoy)}</div>
+      <div class="kpi-extra">${ticketsHoy} tickets hoy</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">VENTAS ESTE MES</div>
+      <div class="kpi-value">${money(ventasMes)}</div>
+      <div class="kpi-extra">${ticketsMes} tickets en el mes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">TICKET PROMEDIO</div>
+      <div class="kpi-value">${money(ticketProm)}</div>
+      <div class="kpi-extra">${totalTickets} tickets históricos</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">HISTÓRICO GENERAL</div>
+      <div class="kpi-value">${money(totalHist)}</div>
+      <div class="kpi-extra">Ventas totales en el sistema</div>
+    </div>
+  `;
+
+  // ----- Ventas últimos 7 días -----
+  const diasOrdenados = [];
+  for(let i=0;i<7;i++){
+    const d = new Date(inicio7);
+    d.setDate(inicio7.getDate()+i);
+    const key = d.toISOString().slice(0,10);
+    diasOrdenados.push({
+      label: `${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`,
+      total: ventasPorDia[key] || 0
+    });
+  }
+  if(diasOrdenados.every(d=>d.total===0)){
+    elChart7dias.innerHTML = `<div class="chart-empty">Sin ventas en los últimos 7 días.</div>`;
+  }else{
+    elChart7dias.innerHTML = diasOrdenados.map(d=>`
+      <div class="bar-row">
+        <span class="bar-label">${d.label}</span>
+        <div class="bar-bg">
+          <div class="bar-fill" style="width:${Math.min(100, d.total===0?0:(d.total/Math.max(...diasOrdenados.map(x=>x.total)))*100)}%;"></div>
+        </div>
+        <span class="bar-value">${money(d.total)}</span>
+      </div>
+    `).join('');
   }
 
-  if(elDashListaKardex){
-    elDashListaKardex.innerHTML='';
-    const lineas=[];
-    state.ventas.forEach(v=>{
-      v.items.forEach(it=>{
-        lineas.push({fecha:v.fechaISO,item:it});
-      });
-    });
-    lineas.sort((a,b)=>b.fecha.localeCompare(a.fecha));
-    lineas.slice(0,8).forEach(l=>{
-      const row=document.createElement('div');
-      row.style.display='flex';
-      row.style.justifyContent='space-between';
-      row.innerHTML = `<span>${l.item.nombre}</span><span>-${l.item.cant}</span>`;
-      elDashListaKardex.appendChild(row);
-    });
+  // ----- Formas de pago hoy -----
+  const totalPagosHoy = pagosHoy.efectivo + pagosHoy.tarjeta + pagosHoy.transferencia + pagosHoy.otros;
+  if(!totalPagosHoy){
+    elChartPagos.innerHTML  = `<div class="chart-empty">Sin ventas hoy.</div>`;
+    elLegendPagos.innerHTML = '';
+  }else{
+    // solo armamos “donut” textual
+    const entries = [
+      {label:'Efectivo',       key:'efectivo'},
+      {label:'Tarjeta',        key:'tarjeta'},
+      {label:'Transferencia',  key:'transferencia'},
+      {label:'Otros',          key:'otros'}
+    ].filter(e => pagosHoy[e.key]>0);
+
+    elChartPagos.innerHTML = `
+      <div class="donut-text">
+        ${entries.map(e=>{
+          const pct = Math.round((pagosHoy[e.key]/totalPagosHoy)*100);
+          return `<div class="donut-item"><span>${e.label}</span><strong>${pct}%</strong></div>`;
+        }).join('')}
+      </div>
+    `;
+
+    elLegendPagos.innerHTML = entries.map(e=>{
+      return `<span class="donut-tag">${e.label}: ${money(pagosHoy[e.key])}</span>`;
+    }).join('');
+  }
+
+  // ----- Últimas ventas -----
+  if(!tickets.length){
+    elListaUltimasVentas.innerHTML = `<div class="list-empty">Sin ventas registradas.</div>`;
+  }else{
+    const ultimas = [...tickets].sort((a,b)=>b._fecha-a._fecha).slice(0,5);
+    elListaUltimasVentas.innerHTML = ultimas.map(t=>{
+      const fechaTxt = t._fecha.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit'});
+      return `
+        <div class="list-row">
+          <div>
+            <div class="list-main">${money(t._total)}</div>
+            <div class="list-sub">Ticket #${t.id || t.folio || '-'} · ${fechaTxt}</div>
+          </div>
+          <div class="list-right">${(t._forma || '').toUpperCase() || '---'}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ----- Kardex reciente (simple: últimos movimientos de inventario/bodega) -----
+  const movs = (state.kardex || state.movimientos || []).slice(-5).reverse();
+  if(!movs.length){
+    elListaKardex.innerHTML = `<div class="list-empty">Sin movimientos recientes.</div>`;
+  }else{
+    elListaKardex.innerHTML = movs.map(m=>{
+      const f = normalizeDate(m.fecha) || hoyDia;
+      const fechaTxt = f.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit'});
+      return `
+        <div class="list-row">
+          <div>
+            <div class="list-main">${m.producto || m.sku || 'Producto'}</div>
+            <div class="list-sub">${m.tipo || 'Movimiento'} · ${fechaTxt}</div>
+          </div>
+          <div class="list-right">${m.cantidad>0?`+${m.cantidad}`:m.cantidad || ''}</div>
+        </div>
+      `;
+    }).join('');
   }
 }
 
@@ -1994,7 +1978,7 @@ elIvaPorc.value = state.config.ivaDefault || 0;
 fillCategoriasSelect();
 renderCatalog('');
 paintCart();
-renderDashboardPro();
+renderDashboard();
 renderClientes();
 renderHistorial();
 renderReportes();

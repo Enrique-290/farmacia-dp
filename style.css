@@ -288,180 +288,163 @@ section.page.active{display:block;}
   border:none;
   border-top:1px dashed #e5e7eb;
 }
-/* ==== DASHBOARD PRO ==== */
-.dashboard-card{
-  padding:18px 20px 18px;
+
+/* ------- DASHBOARD ------- */
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
 }
 
-.dash-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:10px;
-  margin-bottom:10px;
+.dash-kpi {
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 10px 12px;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.2);
 }
 
-.dash-header-chip{
-  font-size:11px;
-  padding:4px 10px;
-  border-radius:999px;
-  background:#e0f2fe;
-  color:#0f172a;
+.dash-kpi-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  opacity: .7;
 }
 
-.dash-kpis{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
-  gap:12px;
-  margin-bottom:16px;
+.dash-kpi-value {
+  font-size: 18px;
+  margin-top: 2px;
+  font-weight: 600;
 }
 
-.kpi-card{
-  background:#0f172a;
-  color:#e5e7eb;
-  border-radius:16px;
-  padding:10px 12px;
-  box-shadow:0 16px 40px rgba(15,23,42,.5);
-  position:relative;
-  overflow:hidden;
+.dash-kpi-sub {
+  font-size: 11px;
+  margin-top: 2px;
+  opacity: .75;
 }
 
-.kpi-card::after{
-  content:"";
-  position:absolute;
-  inset:auto -20px -35px;
-  height:70px;
-  background:radial-gradient(circle at top,#3b82f6,transparent);
-  opacity:.4;
+.charts-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr;
+  gap: 14px;
+  margin-top: 14px;
 }
 
-.kpi-card.kpi-main{
-  background:linear-gradient(135deg,#2563eb,#1d4ed8);
+.chart-placeholder {
+  background: #0f172a;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #e5e7eb;
+  font-size: 12px;
 }
 
-.kpi-label{
-  font-size:11px;
-  opacity:.8;
-  margin-bottom:3px;
-}
-.kpi-value{
-  font-size:22px;
-  font-weight:600;
-}
-.kpi-extra{
-  font-size:11px;
-  margin-top:3px;
-  opacity:.9;
+/* Barras simples (ventas 7 días y formas de pago) */
+
+.chart-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
 }
 
-/* Gráficas */
-.dash-charts{
-  display:grid;
-  grid-template-columns:2fr 1.4fr;
-  gap:14px;
-  margin-bottom:14px;
-}
-@media(max-width:980px){
-  .dash-charts{
-    grid-template-columns:1fr;
-  }
+.chart-bar-label {
+  width: 70px;
+  font-size: 11px;
+  opacity: .8;
 }
 
-.dash-chart{
-  background:linear-gradient(135deg,#eff6ff,#eef2ff);
-  border-radius:18px;
-  padding:12px 12px 10px;
-  box-shadow:0 14px 35px rgba(15,23,42,.18);
+.chart-bar-track {
+  flex: 1;
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 999px;
+  overflow: hidden;
+  height: 8px;
 }
 
-.dash-chart-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  font-size:13px;
-  color:#0f172a;
-  margin-bottom:6px;
+.chart-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8, #22c55e);
+  transform-origin: left;
 }
 
-.chart-badge{
-  font-size:11px;
-  padding:3px 9px;
-  border-radius:999px;
-  background:#0f172a;
-  color:#e5e7eb;
+.chart-bar-fill--secondary {
+  background: linear-gradient(90deg, #f97316, #ef4444);
 }
 
-.chart-xlabels{
-  display:flex;
-  justify-content:space-between;
-  gap:4px;
-  margin-top:4px;
-  font-size:10px;
-  color:#6b7280;
+/* Lista mini (últimas ventas / Kardex) */
+
+.list-mini {
+  margin-top: 6px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.9);
+  padding: 6px 8px;
+  max-height: 230px;
+  overflow-y: auto;
+  font-size: 12px;
+  color: #e5e7eb;
 }
 
-/* Donut */
-.donut-wrapper{
-  position:relative;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  margin-top:2px;
+.list-mini-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 4px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
 }
 
-.donut-center{
-  position:absolute;
-  text-align:center;
-  pointer-events:none;
+.list-mini-item:last-child {
+  border-bottom: none;
 }
 
-.donut-total{
-  font-size:18px;
-  font-weight:600;
-  color:#0f172a;
-}
-.donut-label{
-  font-size:11px;
-  color:#6b7280;
-  margin-top:2px;
+.list-mini-main {
+  font-size: 12px;
 }
 
-.chart-legend{
-  margin-top:6px;
-  display:flex;
-  flex-wrap:wrap;
-  gap:6px;
-  font-size:11px;
+.list-mini-sub {
+  font-size: 11px;
+  opacity: .8;
 }
 
-.chart-legend-item{
-  display:inline-flex;
-  align-items:center;
-  gap:4px;
-  padding:2px 8px;
-  border-radius:999px;
-  background:#e5e7eb;
+.list-mini-pill {
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.45);
 }
 
-.chart-legend-dot{
-  width:8px;
-  height:8px;
-  border-radius:999px;
+/* Leyenda formas de pago */
+
+.donut-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
 
-/* Listas inferiores */
-.dash-bottom{
-  display:grid;
-  grid-template-columns:1.3fr 1.3fr;
-  gap:14px;
+.donut-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  background: rgba(15, 23, 42, 0.85);
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
 }
-@media(max-width:900px){
-  .dash-bottom{
-    grid-template-columns:1fr;
-  }
+
+.donut-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #38bdf8;
 }
-.dash-list-header{
-  font-size:13px;
-  font-weight:600;
-  margin-bottom:4px;
-}
+
+.donut-dot.efectivo   { background: #22c55e; }
+.donut-dot.tarjeta    { background: #0ea5e9; }
+.donut-dot.transfer   { background: #a855f7; }
+.donut-dot.otros      { background: #f97316; }

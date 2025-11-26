@@ -43,85 +43,39 @@
     </header>
     <div class="content">
       <!-- DASHBOARD -->
-    <section class="page active" id="page-dashboard">
-  <div class="card dashboard-card">
-    <div class="dash-header">
+<section class="page active" id="page-dashboard">
+  <div class="card">
+    <div class="card-title">Dashboard</div>
+    <div class="card-sub">Resumen generado a partir del historial de ventas.</div>
+
+    <div class="dash-grid" id="dashKpis">
+      <!-- KPIs por JS -->
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-placeholder">
+        <strong>Ventas últimos 7 días</strong>
+        <div id="chart7dias" style="margin-top:6px;"></div>
+      </div>
+      <div class="chart-placeholder">
+        <strong>Formas de pago (hoy)</strong>
+        <div id="chartPagos" style="margin-top:6px;"></div>
+        <div class="donut-legend" id="legendPagos"></div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:14px;grid-template-columns:1.6fr 1.4fr;">
       <div>
-        <div class="card-title">Dashboard</div>
-        <div class="card-sub">Resumen en tiempo real de ventas, IVA y formas de pago.</div>
-      </div>
-      <div class="dash-header-chip">Modo demo local</div>
-    </div>
-
-    <!-- KPIs -->
-    <div class="dash-kpis">
-      <div class="kpi-card kpi-main">
-        <div class="kpi-label">Ventas hoy</div>
-        <div class="kpi-value" id="kpiVentasHoy">$0.00</div>
-        <div class="kpi-extra" id="kpiTicketsHoy">0 tickets</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Ticket promedio</div>
-        <div class="kpi-value" id="kpiTicketProm">$0.00</div>
-        <div class="kpi-extra">Con base en ventas de hoy</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">IVA de hoy</div>
-        <div class="kpi-value" id="kpiIvaHoy">$0.00</div>
-        <div class="kpi-extra">Sobre ventas con IVA</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Ventas del mes</div>
-        <div class="kpi-value" id="kpiVentasMes">$0.00</div>
-        <div class="kpi-extra" id="kpiMesActual"></div>
-      </div>
-    </div>
-
-    <!-- Gráficas -->
-    <div class="dash-charts">
-      <div class="dash-chart">
-        <div class="dash-chart-header">
-          <span>Ventas últimos 7 días</span>
-          <span class="chart-badge" id="chart7Total">$0.00</span>
-        </div>
-        <canvas id="chartVentas7" width="540" height="220"></canvas>
-        <div class="chart-xlabels" id="chart7Labels"></div>
-      </div>
-
-      <div class="dash-chart">
-        <div class="dash-chart-header">
-          <span>Formas de pago (hoy)</span>
-          <span class="chart-badge" id="chartPagosTotal">$0.00</span>
-        </div>
-        <div class="donut-wrapper">
-          <canvas id="chartPagos" width="220" height="220"></canvas>
-          <div class="donut-center">
-            <div class="donut-total" id="donutTotal">$0.00</div>
-            <div class="donut-label">Total hoy</div>
-          </div>
-        </div>
-        <div class="chart-legend" id="chartPagosLegend"></div>
-      </div>
-    </div>
-
-    <!-- Listas rápidas -->
-    <div class="dash-bottom">
-      <div class="dash-list">
-        <div class="dash-list-header">
-          <span>Últimas ventas</span>
-        </div>
+        <div class="card-title" style="font-size:14px;">Últimas ventas</div>
         <div class="list-mini" id="listaUltimasVentas"></div>
       </div>
-      <div class="dash-list">
-        <div class="dash-list-header">
-          <span>Kardex reciente</span>
-        </div>
+      <div>
+        <div class="card-title" style="font-size:14px;">Kardex reciente</div>
         <div class="list-mini" id="listaKardex"></div>
       </div>
     </div>
   </div>
 </section>
-
 
       <!-- VENTAS -->
       <section class="page" id="page-ventas">
@@ -562,14 +516,14 @@
       </section>
 
       <!-- CONFIGURACIÓN -->
- <section class="page" id="page-config">
-  <div class="card">
-    <div class="card-title">Configuración</div>
-    <div class="card-sub">
+     <section class="page" id="page-config">
+     <div class="card">
+     <div class="card-title">Configuración</div>
+     <div class="card-sub">
       Parámetros básicos: datos del negocio, IVA, ticket y respaldos.
-    /<div>
+     /<div>
 
-    <div class="grid" style="grid-template-columns:1.3fr 1.7fr;margin-top:10px;gap:18px;">
+     <div class="grid" style="grid-template-columns:1.3fr 1.7fr;margin-top:10px;gap:18px;">
       <!-- Columna izquierda: datos y ticket -->
       <div>
         <div class="field-label" style="font-weight:600;margin-bottom:4px;">
