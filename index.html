@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Farmacia DP – TPV Demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-badge">Rx</div>
+      <div>
+        <div class="sidebar-title">Farmacia DP</div>
+        <div class="sidebar-sub">TPV Demo</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section-title">General</div>
+      <div class="nav-item active" data-page="dashboard"><span class="icon">📊</span><span>Dashboard</span></div>
+      <div class="nav-item" data-page="ventas"><span class="icon">🧾</span><span>Ventas</span></div>
+      <div class="nav-item" data-page="inventario"><span class="icon">💊</span><span>Inventario</span></div>
+      <div class="nav-item" data-page="bodega"><span class="icon">📦</span><span>Bodega</span></div>
+      <div class="nav-item" data-page="clientes"><span class="icon">👤</span><span>Clientes</span></div>
+      <div class="nav-item" data-page="historial"><span class="icon">📚</span><span>Historial</span></div>
+      <div class="nav-item" data-page="reportes"><span class="icon">📈</span><span>Reportes</span></div>
+      <div class="nav-item" data-page="config"><span class="icon">⚙️</span><span>Configuración</span></div>
+    </nav>
+    <div class="sidebar-footer">
+      <strong>Farmacia DP v1 Demo</strong>
+      Datos locales · Funcional en navegador
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="burger-btn" id="btnBurger"><span></span></button>
+        <div class="topbar-title" id="pageTitle">Dashboard</div>
+      </div>
+      <div class="topbar-right">Modo local · Prueba en este dispositivo</div>
+    </header>
+    <div class="content">
+      <!-- DASHBOARD -->
+<section class="page active" id="page-dashboard">
+  <div class="card">
+    <div class="card-title">Dashboard</div>
+    <div class="card-sub">Resumen generado a partir del historial de ventas.</div>
+
+    <div class="dash-grid" id="dashKpis">
+      <!-- KPIs por JS -->
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-placeholder">
+        <strong>Ventas últimos 7 días</strong>
+        <div id="chart7dias" style="margin-top:6px;"></div>
+      </div>
+      <div class="chart-placeholder">
+        <strong>Formas de pago (hoy)</strong>
+        <div id="chartPagos" style="margin-top:6px;"></div>
+        <div class="donut-legend" id="legendPagos"></div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:14px;grid-template-columns:1.6fr 1.4fr;">
+      <div>
+        <div class="card-title" style="font-size:14px;">Últimas ventas</div>
+        <div class="list-mini" id="listaUltimasVentas"></div>
+      </div>
+      <div>
+        <div class="card-title" style="font-size:14px;">Kardex reciente</div>
+        <div class="list-mini" id="listaKardex"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+      <!-- VENTAS -->
+      <section class="page" id="page-ventas">
+        <div class="card">
+          <div class="card-title">Ventas</div>
+          <div class="card-sub">Busca productos, arma el carrito y genera ticket 58&nbsp;mm.</div>
+
+          <div class="ventas-layout">
+            <div>
+              <div class="ventas-filtros">
+                <input id="search" class="input" placeholder="🔍 Súper buscador (nombre o SKU)">
+                <input id="scan" class="input" placeholder="🔢 Escáner / código (Enter = SKU)">
+                <button class="btn btn-soft" id="btnClear">Limpiar</button>
+                <button class="btn btn-primary" id="btnDemoInv">Cargar demo</button>
+              </div>
+              <div class="hint">
+                Tip: Carga inventario demo para probar, o da de alta productos desde la sección <strong>Inventario</strong>.
+              </div>
+              <div id="productosGrid" class="productos-grid"></div>
+              <div id="productosEmpty" style="display:none;margin-top:18px;font-size:13px;color:#6b7280;">
+                No hay productos cargados. Usa <strong>Cargar demo</strong> o da de alta productos en Inventario.
+              </div>
+            </div>
+
+            <div>
+              <div class="card" style="box-shadow:none;border-radius:var(--radius-lg);border:1px solid var(--border);">
+                <div class="carrito-header">
+                  <div>
+                    <div class="card-title">Carrito</div>
+                    <div class="card-sub">Totales y ticket en vivo</div>
+                  </div>
+                  <button class="btn btn-outline" id="btnVaciar">Vaciar</button>
+                </div>
+                <div class="carrito-body">
+                  <div>
+                    <label class="field-label">Cliente (opcional)</label>
+                    <select id="clienteSelect" class="select">
+                      <option value="">Sin cliente</option>
+                    </select>
+                  </div>
+                  <div class="carrito-grid-2">
+                    <div>
+                      <label class="field-label">Descuento (%)</label>
+                      <input id="descPorc" class="input" type="number" min="0" max="100" value="0">
+                    </div>
+                    <div>
+                      <label class="field-label">IVA (%)</label>
+                      <input id="ivaPorc" class="input" type="number" min="0" max="100" value="0">
+                    </div>
+                  </div>
+                  <div class="carrito-grid-2">
+                    <div>
+                      <label class="field-label">Extra (concepto)</label>
+                      <input id="extraConcepto" class="input" placeholder="Curación, servicio, etc.">
+                    </div>
+                    <div>
+                      <label class="field-label">Extra ($)</label>
+                      <input id="extraMonto" class="input" type="number" min="0" step="0.01" value="0">
+                    </div>
+                  </div>
+                  <div>
+                    <label class="field-label">Notas (motivo, receta, etc.)</label>
+                    <input id="notas" class="input" placeholder="Opcional">
+                  </div>
+                  <div>
+                    <label class="field-label">Productos</label>
+                    <table class="carrito-tabla">
+                      <thead>
+                        <tr>
+                          <th>Producto</th><th>Cant</th><th>Precio</th><th>Sub</th><th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="tablaCarritoBody"></tbody>
+                    </table>
+                  </div>
+                  <div>
+                    <label class="field-label">Forma de pago</label>
+                    <select id="formaPago" class="select">
+                      <option value="Efectivo">Efectivo</option>
+                      <option value="Tarjeta">Tarjeta</option>
+                      <option value="Transferencia">Transferencia</option>
+                      <option value="Mixto">Mixto</option>
+                    </select>
+                  </div>
+                  <div class="totales">
+                    <div class="totales-row"><span>Subtotal:</span><span id="lblSubtotal">$0.00</span></div>
+                    <div class="totales-row"><span>Descuento:</span><span id="lblDesc">$0.00</span></div>
+                    <div class="totales-row"><span>Extra:</span><span id="lblExtra">$0.00</span></div>
+                    <div class="totales-row"><span>IVA:</span><span id="lblIva">$0.00</span></div>
+                    <div class="totales-row total"><strong>TOTAL:</strong><strong id="lblTotal">$0.00</strong></div>
+                  </div>
+                  <div class="acciones-cobro">
+                    <button class="btn btn-primary" id="btnCobrar">Cobrar e imprimir</button>
+                  </div>
+                  <div>
+                    <label class="field-label">Ticket (preview)</label>
+                    <pre id="ticketPreview">(Vacío)</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div><!-- ventas-layout -->
+        </div>
+      </section>
+
+      <!-- INVENTARIO -->
+      <section class="page" id="page-inventario">
+        <div class="card">
+          <div class="card-title">Inventario</div>
+          <div class="card-sub">Administra los productos de la farmacia. Este inventario alimenta la sección Ventas.</div>
+          <div class="grid" style="grid-template-columns:1.2fr 1.8fr;margin-top:10px;">
+            <!-- Formulario -->
+            <div>
+              <div class="field-label">Imagen del producto</div>
+              <div id="invImagenPreview" class="producto-img" style="height:110px;margin-bottom:6px;">💊</div>
+              <input type="file" id="invImagen" accept="image/*" class="input" style="padding:6px;">
+
+              <div class="field-label" style="margin-top:8px;">SKU</div>
+              <input id="invSku" class="input">
+
+              <div class="field-label" style="margin-top:6px;">Nombre</div>
+              <input id="invNombre" class="input">
+
+              <div class="carrito-grid-2" style="margin-top:6px;">
+                <div>
+                  <div class="field-label">Precio venta</div>
+                  <input id="invPrecio" class="input" type="number" min="0" step="0.01">
+                </div>
+                <div>
+                  <div class="field-label">Costo</div>
+                  <input id="invCosto" class="input" type="number" min="0" step="0.01">
+                </div>
+              </div>
+
+              <div class="carrito-grid-2" style="margin-top:6px;">
+                <div>
+                  <div class="field-label">Stock piso</div>
+                  <input id="invStockPiso" class="input" type="number" min="0" step="1">
+                </div>
+                <div>
+                  <div class="field-label">Stock bodega</div>
+                  <input id="invStockBodega" class="input" type="number" min="0" step="1">
+                </div>
+              </div>
+
+              <div class="field-label" style="margin-top:6px;">Stock mínimo</div>
+              <input id="invStockMin" class="input" type="number" min="0" step="1">
+
+              <div class="carrito-grid-2" style="margin-top:6px;">
+                <div>
+                  <div class="field-label">Lote</div>
+                  <input id="invLote" class="input">
+                </div>
+                <div>
+                  <div class="field-label">Caducidad</div>
+                  <input id="invCaducidad" class="input" type="date">
+                </div>
+              </div>
+
+              <div class="field-label" style="margin-top:6px;">Categoría</div>
+              <select id="invCategoria" class="select"></select>
+              <div class="carrito-grid-2" style="margin-top:4px;">
+                <div>
+                  <input id="invCategoriaNueva" class="input" placeholder="Nueva categoría">
+                </div>
+                <div style="display:flex;align-items:center;justify-content:flex-start;">
+                  <button class="btn btn-soft" id="btnInvAgregarCategoria">Agregar cat.</button>
+                </div>
+              </div>
+
+              <div style="margin-top:10px;display:flex;gap:8px;">
+                <button class="btn btn-primary" id="btnInvGuardar">Guardar producto</button>
+                <button class="btn btn-outline" id="btnInvNuevo">Limpiar</button>
+              </div>
+            </div>
+
+            <!-- Tabla -->
+            <div>
+              <div class="field-label">Productos</div>
+              <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-soft" id="btnInvCargarDemo">Cargar demo inventario</button>
+                <button class="btn btn-outline" id="btnInvExportCsv">Exportar Excel</button>
+                <button class="btn btn-outline" id="btnInvExportPdf">Exportar PDF</button>
+              </div>
+              <div style="margin-top:8px;max-height:380px;overflow:auto;">
+                <table class="inv-table">
+                  <thead>
+                    <tr>
+                      <th>Img</th>
+                      <th>SKU</th>
+                      <th>Nombre</th>
+                      <th>Precio</th>
+                      <th>Piso</th>
+                      <th>Bodega</th>
+                      <th>Cat</th>
+                      <th>Lote/Cad</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tablaInventario"></tbody>
+                </table>
+              </div>
+              <p style="font-size:12px;color:#64748b;margin-top:6px;">
+                Nota: al cobrar en Ventas se descuenta del <strong>stock piso</strong> de este inventario.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- BODEGA -->
+      <section class="page" id="page-bodega">
+        <div class="card">
+          <div class="card-title">Bodega</div>
+          <div class="card-sub">
+            Control de lotes y caducidades por producto. Desde aquí puedes agregar lotes, surtir a piso y exportar el inventario de bodega.
+          </div>
+          <div class="grid" style="grid-template-columns:1.2fr 1.8fr;margin-top:10px;">
+            <div>
+              <div class="field-label">Producto</div>
+              <select id="bodProducto" class="select">
+                <option value="">Selecciona producto</option>
+              </select>
+
+              <div class="carrito-grid-2" style="margin-top:6px;">
+                <div>
+                  <div class="field-label">Cantidad (pzas)</div>
+                  <input id="bodCantidad" class="input" type="number" min="1" step="1">
+                </div>
+                <div>
+                  <div class="field-label">Costo por pieza</div>
+                  <input id="bodCosto" class="input" type="number" min="0" step="0.01">
+                </div>
+              </div>
+
+              <div class="carrito-grid-2" style="margin-top:6px;">
+                <div>
+                  <div class="field-label">Lote</div>
+                  <input id="bodLote" class="input" placeholder="Ej. 123456">
+                </div>
+                <div>
+                  <div class="field-label">Caducidad</div>
+                  <input id="bodCaducidad" class="input" type="date">
+                </div>
+              </div>
+
+              <div style="margin-top:10px;display:flex;gap:8px;">
+                <button class="btn btn-primary" id="btnBodAgregarLote">Agregar lote</button>
+                <button class="btn btn-outline" id="btnBodLimpiar">Limpiar</button>
+              </div>
+
+              <p style="font-size:12px;color:#64748b;margin-top:8px;">
+                Cada lote que agregues suma stock a <strong>bodega</strong> del producto seleccionado. Desde la tabla puedes surtir a piso o borrar el lote.
+              </p>
+            </div>
+
+            <div>
+              <div class="field-label">Lotes en bodega</div>
+              <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-outline" id="btnBodExportCsv">Exportar Excel (CSV)</button>
+                <button class="btn btn-outline" id="btnBodExportPdf">Exportar PDF</button>
+              </div>
+              <div style="margin-top:8px;max-height:380px;overflow:auto;">
+                <table class="inv-table">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Nombre</th>
+                      <th>Lote</th>
+                      <th>Cad.</th>
+                      <th>Cant.</th>
+                      <th>Costo</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tablaBodegaLotes"></tbody>
+                </table>
+              </div>
+              <p style="font-size:12px;color:#64748b;margin-top:6px;">
+                Surtir descuenta piezas del lote y las pasa a piso. Borrar lote descuenta todas sus piezas de bodega.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CLIENTES -->
+      <section class="page" id="page-clientes">
+        <div class="card">
+          <div class="card-title">Clientes</div>
+          <div class="card-sub">Carga clientes básicos para seleccionarlos en Ventas.</div>
+          <div class="grid" style="grid-template-columns:1.3fr 1.7fr;margin-top:10px;">
+            <div>
+              <div class="field-label">Nombre completo</div>
+              <input id="cliNombre" class="input">
+              <div class="field-label" style="margin-top:6px;">Teléfono</div>
+              <input id="cliTel" class="input">
+              <div class="field-label" style="margin-top:6px;">Correo (opcional)</div>
+              <input id="cliCorreo" class="input">
+              <button class="btn btn-primary" style="margin-top:8px;" id="btnAgregarCliente">Guardar cliente</button>
+            </div>
+            <div>
+              <div class="field-label">Lista de clientes</div>
+              <div id="listaClientes" style="font-size:13px;margin-top:4px;"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- HISTORIAL -->
+      <section class="page" id="page-historial">
+        <div class="card">
+          <div class="card-title">Historial</div>
+          <div class="card-sub">Consulta tickets cobrados, filtra y exporta resultados.</div>
+
+          <div class="ventas-filtros" style="margin-top:10px;">
+            <div style="flex:1;min-width:140px;">
+              <label class="field-label">Desde</label>
+              <input id="histDesde" type="date" class="input">
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label class="field-label">Hasta</label>
+              <input id="histHasta" type="date" class="input">
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label class="field-label">Forma de pago</label>
+              <select id="histFormaPago" class="select">
+                <option value="">Todas</option>
+                <option value="Efectivo">Efectivo</option>
+                <option value="Tarjeta">Tarjeta</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Mixto">Mixto</option>
+              </select>
+            </div>
+            <div style="flex:1.2;min-width:160px;">
+              <label class="field-label">Cliente</label>
+              <input id="histCliente" class="input" placeholder="Nombre de cliente">
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <button class="btn btn-soft" id="btnHistLimpiar">Limpiar filtros</button>
+            <button class="btn btn-outline" id="btnHistExportCsv">Exportar Excel (CSV)</button>
+            <button class="btn btn-outline" id="btnHistExportPdf">Exportar PDF</button>
+          </div>
+
+          <div style="max-height:380px;overflow:auto;margin-top:4px;">
+            <table class="inv-table">
+              <thead>
+                <tr>
+                  <th>Ticket</th>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Pago</th>
+                  <th>Total</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="historialTabla"></tbody>
+            </table>
+          </div>
+          <p id="historialResumen" style="font-size:12px;color:#64748b;margin-top:6px;"></p>
+        </div>
+      </section>
+
+            <!-- REPORTES -->
+      <section class="page" id="page-reportes">
+        <div class="card">
+          <div class="card-title">Reportes</div>
+          <div class="card-sub">
+            Analiza tus ventas usando filtros por fecha y forma de pago.  
+            Los datos salen del historial de tickets cobrados.
+          </div>
+
+          <!-- Filtros -->
+          <div class="ventas-filtros" style="margin-top:10px;">
+            <div style="flex:1;min-width:140px;">
+              <label class="field-label">Desde</label>
+              <input id="repDesde" type="date" class="input">
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label class="field-label">Hasta</label>
+              <input id="repHasta" type="date" class="input">
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label class="field-label">Forma de pago</label>
+              <select id="repFormaPago" class="select">
+                <option value="">Todas</option>
+                <option value="Efectivo">Efectivo</option>
+                <option value="Tarjeta">Tarjeta</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Mixto">Mixto</option>
+              </select>
+            </div>
+            <div style="flex:1.2;min-width:160px;">
+              <label class="field-label">Atajos rápidos</label>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                <button class="btn btn-soft" id="btnRepHoy">Hoy</button>
+                <button class="btn btn-soft" id="btnRepMes">Este mes</button>
+                <button class="btn btn-outline" id="btnRepTodo">Todo</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPIs -->
+          <div id="reportesResumen" style="margin-top:10px;"></div>
+
+          <!-- Gráficas (reutilizamos estilos de dashboard) -->
+          <div class="charts-grid" style="margin-top:14px;">
+            <div class="chart-placeholder">
+              <strong>Ventas por día (periodo)</strong>
+              <div id="repChartDias" style="margin-top:6px;"></div>
+            </div>
+            <div class="chart-placeholder">
+              <strong>Formas de pago (periodo)</strong>
+              <div id="repChartPagos" style="margin-top:6px;"></div>
+              <div id="repLegendPagos" class="donut-legend"></div>
+            </div>
+          </div>
+
+          <!-- Top productos -->
+          <div style="margin-top:14px;">
+            <div class="card-title" style="font-size:14px;">Top productos por ventas</div>
+            <div style="max-height:260px;overflow:auto;margin-top:6px;">
+              <table class="inv-table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Cant. vendida</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="repTopProductos"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONFIGURACIÓN -->
+     <section class="page" id="page-config">
+     <div class="card">
+     <div class="card-title">Configuración</div>
+     <div class="card-sub">
+      Parámetros básicos: datos del negocio, IVA, ticket y respaldos.
+     /<div>
+
+     <div class="grid" style="grid-template-columns:1.3fr 1.7fr;margin-top:10px;gap:18px;">
+      <!-- Columna izquierda: datos y ticket -->
+      <div>
+        <div class="field-label" style="font-weight:600;margin-bottom:4px;">
+          Datos del negocio
+        </div>
+
+        <div class="field-label">Nombre del negocio</div>
+        <input id="cfgNegocio" class="input" placeholder="Ej. Farmacia DP">
+
+        <div class="field-label" style="margin-top:6px;">RFC</div>
+        <input id="cfgRFC" class="input" placeholder="Opcional">
+
+        <div class="field-label" style="margin-top:6px;">Dirección</div>
+        <textarea id="cfgDireccion" rows="2" class="input" style="resize:vertical;"
+          placeholder="Calle, número, colonia, ciudad"></textarea>
+
+        <div class="field-label" style="margin-top:6px;">Teléfono</div>
+        <input id="cfgTelefono" class="input" placeholder="Opcional">
+
+        <hr class="config-separator">
+
+        <div class="field-label" style="font-weight:600;margin-bottom:4px;">
+          Ticket e impuestos
+        </div>
+
+        <div class="field-label">IVA por defecto (%)</div>
+        <input id="cfgIva" class="input" type="number" min="0" max="100">
+
+        <div class="field-label" style="margin-top:6px;">Mensaje final del ticket</div>
+        <textarea id="cfgMensaje" rows="3" class="input" style="resize:vertical;"
+          placeholder="Texto que aparecerá al final del ticket"></textarea>
+
+        <button class="btn btn-primary" style="margin-top:10px;" id="btnGuardarCfg">
+          Guardar configuración
+        </button>
+      </div>
+
+      <!-- Columna derecha: respaldos -->
+      <div>
+        <div class="field-label" style="font-weight:600;margin-bottom:4px;">
+          Respaldos (JSON)
+        </div>
+        <p style="font-size:12px;color:#64748b;margin-bottom:6px;">
+          Exporta un archivo con <strong>configuración, inventario, clientes, ventas y bodega</strong>
+          para tener un respaldo completo.
+        </p>
+        <button class="btn btn-soft" id="btnExportJson">Exportar backup JSON</button>
+
+        <p style="font-size:12px;color:#64748b;margin-top:10px;margin-bottom:4px;">
+          Para restaurar un respaldo, selecciona el archivo:
+        </p>
+        <input type="file" id="inputImportJson" accept="application/json">
+
+        <p style="font-size:12px;color:#64748b;margin-top:8px;">
+          Los datos se guardan en este navegador usando
+          <strong>localStorage</strong>. Procura hacer respaldos periódicos.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+  <script src="js/core.js"></script>
+  <script src="modules/ventas/ventas.js"></script>
+  <script src="modules/inventario/inventario.js"></script>
+  <script src="modules/clientes/clientes.js"></script>
+  <script src="modules/historial/historial.js"></script>
+  <script src="modules/bodega/bodega.js"></script>
+  <script src="modules/reportes/reportes.js"></script>
+  <script src="modules/dashboard/dashboard.js"></script>
+</body>
+</html>
